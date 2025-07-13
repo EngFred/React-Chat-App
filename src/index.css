@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles for the Inter font */
+html, body {
+  font-family: 'Inter', sans-serif;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.messages-container::-webkit-scrollbar {
+  display: none;
+}
+.messages-container {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Crystal Light Theme (Inspired by Signal Light) */
+.theme-crystal-light {
+  --color-primary: #3B82F6; /* Blue-500: Vibrant buttons */
+  --color-secondary: #60A5FA; /* Blue-400: Hover states */
+  --color-accent: #EC4899; /* Pink-500: Notifications */
+  --color-background: #F8FAFC; /* Slate-50: Clean background */
+  --color-text-primary: #1E293B; /* Slate-800: High-contrast text */
+  --color-text-secondary: #64748B; /* Slate-500: Subtle text */
+  --color-border: #E2E8F0; /* Slate-200: Soft borders */
+  --color-input-bg: #F1F5F9; /* Slate-100: Input fields */
+  --color-message-bg-self: #DBEAFE; /* Blue-100: Self-message bubble */
+  --color-message-bg-other: #E5E7EB; /* Gray-200: Other-message bubble */
+  --color-button-text: #FFFFFF; /* White: Button text/icons */
+}
+
+/* Midnight Glow Theme (Inspired by Discord Dark) */
+.theme-midnight-glow {
+  --color-primary: #7289DA; /* Discord blurple */
+  --color-secondary: #99AAB5; /* Discord greyple */
+  --color-accent: #43B581; /* Discord green */
+  --color-background: #2C2F33; /* Discord dark gray */
+  --color-text-primary: #FFFFFF; /* White: High-contrast text */
+  --color-text-secondary: #B9BBBE; /* Discord muted gray */
+  --color-border: #4F545C; /* Discord darker gray */
+  --color-input-bg: #36393F; /* Discord input gray */
+  --color-message-bg-self: #4F545C; /* Discord self-message */
+  --color-message-bg-other: #32353B; /* Discord other-message */
+  --color-button-text: #FFFFFF; /* White: Button text/icons */
+}
+
+/* Ocean Breeze Theme (Inspired by Telegram Dark) */
+.theme-ocean-breeze {
+  --color-primary: #00A1AD; /* Telegram teal */
+  --color-secondary: #33C4B6; /* Telegram lighter teal */
+  --color-accent: #FF3B30; /* Telegram red */
+  --color-background: #1C2526; /* Telegram dark blue-gray */
+  --color-text-primary: #E1E8ED; /* Telegram light gray */
+  --color-text-secondary: #A3BFFA; /* Telegram muted blue */
+  --color-border: #2A3B3D; /* Telegram darker border */
+  --color-input-bg: #2A3B3D; /* Telegram input */
+  --color-message-bg-self: #005F6A; /* Telegram self-message */
+  --color-message-bg-other: #2A3B3D; /* Telegram other-message */
+  --color-button-text: #FFFFFF; /* White: Button text/icons */
+}
+
+/* Sunset Glow Theme (Inspired by WhatsApp Dark) */
+.theme-sunset-glow {
+  --color-primary: #00A884; /* WhatsApp green */
+  --color-secondary: #00C4B4; /* WhatsApp lighter green */
+  --color-accent: #FF6C6C; /* WhatsApp red */
+  --color-background: #0B141A; /* WhatsApp dark gray */
+  --color-text-primary: #E9EDEF; /* WhatsApp light gray */
+  --color-text-secondary: #8696A0; /* WhatsApp muted gray */
+  --color-border: #1F2A2E; /* WhatsApp border */
+  --color-input-bg: #1F2A2E; /* WhatsApp input */
+  --color-message-bg-self: #005C4B; /* WhatsApp self-message */
+  --color-message-bg-other: #1F2A2E; /* WhatsApp other-message */
+  --color-button-text: #FFFFFF; /* White: Button text/icons */
+}
+
+/* Slate Elegance Theme (Inspired by Snapchat Dark) */
+.theme-slate-elegance {
+  --color-primary: #FFFC00; /* Snapchat yellow */
+  --color-secondary: #FFFF66; /* Snapchat lighter yellow */
+  --color-accent: #00DDEB; /* Snapchat cyan */
+  --color-background: #121212; /* Snapchat near-black */
+  --color-text-primary: #FFFFFF; /* White: High-contrast text */
+  --color-text-secondary: #B0B0B0; /* Snapchat muted gray */
+  --color-border: #2A2A2A; /* Snapchat border */
+  --color-input-bg: #2A2A2A; /* Snapchat input */
+  --color-message-bg-self: #3C3C3C; /* Snapchat self-message */
+  --color-message-bg-other: #2A2A2A; /* Snapchat other-message */
+  --color-button-text: #1E293B; /* Slate-800: High-contrast button text/icons */
+}
