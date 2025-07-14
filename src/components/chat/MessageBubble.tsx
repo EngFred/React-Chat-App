@@ -1,5 +1,5 @@
 import React from 'react';
-import { FiFile, FiCheck, FiCheckCircle } from 'react-icons/fi';
+import { FiFile, FiCheck, FiCheckCircle, FiVideo, FiPhone } from 'react-icons/fi';
 import type { Message } from '../../types/message';
 import type { User } from '../../types/user';
 import dayjs from 'dayjs';
@@ -30,7 +30,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
     >
       {!isOwnMessage && (
         <img
-          src={sender.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(sender.username || 'U')}&background=random&color=fff&size=128`}
+          src={
+            sender.profilePicture ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(sender.username || 'U')}&background=random&color=fff&size=128`
+          }
           alt={sender.username}
           className="w-8 h-8 rounded-full object-cover mr-2"
           onError={(e) => {
@@ -40,13 +43,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
       )}
       <div className={`flex flex-col max-w-[70%] sm:max-w-[60%] p-3 rounded-xl shadow-sm ${bubbleClasses}`}>
         {!isOwnMessage && (
-          <span className="text-xs font-semibold mb-1 text-primary">
-            {sender.username}
-          </span>
+          <span className="text-xs font-semibold mb-1 text-primary">{sender.username}</span>
         )}
-        {message.type === 'text' && (
-          <p className="text-sm break-words">{message.content}</p>
-        )}
+        {message.type === 'text' && <p className="text-sm break-words">{message.content}</p>}
         {message.type === 'image' && message.imageUrl && (
           <img
             src={message.imageUrl}
@@ -73,7 +72,31 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
             Your browser does not support the video tag.
           </video>
         )}
-        <div className={`flex items-center justify-end text-xs mt-1 ${isOwnMessage ? 'text-gray-600 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}>
+        {message.type === 'call' && message.callData && (
+          <div className="flex items-center text-sm">
+            {message.callData.callType === 'video' ? (
+              <FiVideo size={16} className="mr-2 text-primary" />
+            ) : (
+              <FiPhone size={16} className="mr-2 text-primary" />
+            )}
+            <span>
+              {isOwnMessage ? 'You' : sender.username} {message.content} (
+              {message.callData.status === 'initiated'
+                ? 'Started'
+                : message.callData.status === 'accepted'
+                ? 'Active'
+                : message.callData.status === 'rejected'
+                ? 'Rejected'
+                : 'Ended'}
+              )
+            </span>
+          </div>
+        )}
+        <div
+          className={`flex items-center justify-end text-xs mt-1 ${
+            isOwnMessage ? 'text-gray-600 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'
+          }`}
+        >
           <span>{dayjs(message.timestamp).format('LT')}</span>
           {isOwnMessage && (
             <span className="ml-1">
@@ -88,7 +111,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
       </div>
       {isOwnMessage && (
         <img
-          src={sender.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(sender.username || 'U')}&background=random&color=fff&size=128`}
+          src={
+            sender.profilePicture ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(sender.username || 'U')}&background=random&color=fff&size=128`
+          }
           alt={sender.username}
           className="w-8 h-8 rounded-full object-cover ml-2"
           onError={(e) => {

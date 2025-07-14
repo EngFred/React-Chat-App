@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useThemeStore } from '../../store/themeStore';
+import { useAuthStore } from '../../store/authStore';
 import UserList from '../../components/chat/UserList';
 import ChatWindow from '../../components/chat/ChatWindow';
+import CallNotificationModal from '../../components/video-call/CallNotificationModal';
 import type { User } from '../../types/user';
 import type { Conversation } from '../../types/conversation';
 import type { Message } from '../../types/message';
@@ -9,13 +11,13 @@ import { FiMenu, FiLogOut, FiSettings } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import type { Theme } from '../../types/theme';
-import { useAuthStore } from '../../store/authStore';
-import { collection, query, where, onSnapshot, orderBy, addDoc, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, addDoc, getDocs, doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db, appId } from '../../config/firebase';
 import { v4 as uuidv4 } from 'uuid';
 import { cloudinaryConfig } from '../../config/cloudinary';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
+import { playRingtone } from '../../utils/ringtone';
 
 const ChatPage: React.FC = () => {
   const { currentTheme, setTheme } = useThemeStore();
@@ -29,6 +31,9 @@ const ChatPage: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [incomingCallMessage, setIncomingCallMessage] = useState<Message | null>(null);
+  const [stopRingtone, setStopRingtone] = useState<(() => void) | null>(null);
+  const [lastProcessedCallMessageId, setLastProcessedCallMessageId] = useState<string | null>(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -42,16 +47,19 @@ const ChatPage: React.FC = () => {
     if (!userId || loadingAuth) return;
 
     const usersRef = collection(db, `artifacts/${appId}/users`);
-    const unsubscribe = onSnapshot(usersRef, (snapshot) => {
-      const usersData: User[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data() as Omit<User, 'id'>,
-      })).filter(user => user.id !== userId);
-      setAllUsers(usersData);
-    }, (error) => {
-      console.error("Error fetching users:", error);
-      toast.error("Failed to load users.");
-    });
+    const unsubscribe = onSnapshot(
+      usersRef,
+      (snapshot) => {
+        const usersData: User[] = snapshot.docs
+          .map((doc) => ({ id: doc.id, ...doc.data() } as User))
+          .filter((user) => user.id !== userId);
+        setAllUsers(usersData);
+      },
+      (error) => {
+        console.error('Error fetching users:', error);
+        toast.error('Failed to load users.');
+      }
+    );
 
     return () => unsubscribe();
   }, [userId, loadingAuth]);
@@ -59,21 +67,22 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     if (!userId || loadingAuth) return;
 
-    const q = query(
-      collection(db, `artifacts/${appId}/conversations`),
-      where('participants', 'array-contains', userId)
-    );
+    const q = query(collection(db, `artifacts/${appId}/conversations`), where('participants', 'array-contains', userId));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedConversations: Conversation[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data() as Omit<Conversation, 'id'>,
-      }));
-      setConversations(fetchedConversations);
-    }, (error) => {
-      console.error("Error fetching conversations:", error);
-      toast.error("Failed to load conversations.");
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const fetchedConversations: Conversation[] = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Conversation[];
+        setConversations(fetchedConversations);
+      },
+      (error) => {
+        console.error('Error fetching conversations:', error);
+        toast.error('Failed to load conversations.');
+      }
+    );
 
     return () => unsubscribe();
   }, [userId, loadingAuth]);
@@ -89,89 +98,320 @@ const ChatPage: React.FC = () => {
     const messagesRef = collection(db, `artifacts/${appId}/conversations/${selectedConversation.id}/messages`);
     const q = query(messagesRef, orderBy('timestamp', 'asc'));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedMessages: Message[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data() as Omit<Message, 'id'>,
-        timestamp: (doc.data().timestamp?.toDate() || new Date()).toISOString(),
-      }));
-      setMessages(fetchedMessages);
-      setIsLoadingMessages(false);
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const fetchedMessages: Message[] = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+          timestamp: (doc.data().timestamp?.toDate() || new Date()).toISOString(),
+        })) as Message[];
+        setMessages(fetchedMessages);
+        setIsLoadingMessages(false);
 
-      // Mark messages as read
-      markMessagesAsRead(selectedConversation.id, userId);
-    }, (error) => {
-      console.error("Error fetching messages:", error);
-      toast.error("Failed to load messages.");
-      setIsLoadingMessages(false);
-    });
+        markMessagesAsRead(selectedConversation.id, userId);
+      },
+      (error) => {
+        console.error('Error fetching messages:', error);
+        toast.error('Failed to load messages.');
+        setIsLoadingMessages(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [selectedConversation?.id, userId, loadingAuth, markMessagesAsRead]);
 
-  const findOrCreateConversation = useCallback(async (otherUserId: string): Promise<Conversation> => {
-    if (!userId) throw new Error("Current user ID is not available.");
+  useEffect(() => {
+    if (!userId || loadingAuth) return;
 
-    const q = query(
-      collection(db, `artifacts/${appId}/conversations`),
-      where('participants', 'array-contains', userId),
-      where('type', '==', 'private')
+    const conversationsRef = collection(db, `artifacts/${appId}/conversations`);
+    const q = query(conversationsRef, where('participants', 'array-contains', userId));
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'modified') {
+            const conversation = { id: change.doc.id, ...change.doc.data() } as Conversation;
+            const lastMessage = conversation.lastMessage;
+            if (
+              lastMessage?.type === 'call' &&
+              lastMessage.callData?.status === 'initiated' &&
+              lastMessage.senderId !== userId &&
+              conversation.participants.includes(userId) &&
+              lastMessage.id !== lastProcessedCallMessageId
+            ) {
+              const callMessage = { ...lastMessage, conversationId: conversation.id };
+              setIncomingCallMessage(callMessage);
+              setLastProcessedCallMessageId(lastMessage.id);
+              const stop = playRingtone();
+              setStopRingtone(() => stop);
+            } else if (
+              lastMessage?.type === 'call' &&
+              ['accepted', 'rejected', 'ended'].includes(lastMessage.callData?.status || '') &&
+              incomingCallMessage?.id === lastMessage.id
+            ) {
+              setIncomingCallMessage(null);
+              setLastProcessedCallMessageId(null);
+              if (stopRingtone) {
+                try {
+                  stopRingtone();
+                  setStopRingtone(null);
+                } catch (error) {
+                  console.warn('Error stopping ringtone:', error);
+                }
+              }
+            }
+          }
+        });
+      },
+      (error) => {
+        console.error('Error listening for call messages:', error);
+        toast.error('Failed to detect incoming calls.');
+      }
     );
 
-    const existingConversations = await getDocs(q);
+    return () => {
+      if (stopRingtone) {
+        try {
+          stopRingtone();
+          setStopRingtone(null);
+        } catch (error) {
+          console.warn('Error stopping ringtone on cleanup:', error);
+        }
+      }
+      unsubscribe();
+    };
+  }, [userId, loadingAuth, incomingCallMessage?.id, lastProcessedCallMessageId, stopRingtone]);
 
-    const foundConversation = existingConversations.docs.find(docSnap => {
-      const data = docSnap.data();
-      const participants = data.participants as string[];
-      return participants.length === 2 && participants.includes(otherUserId);
-    });
-
-    if (foundConversation) {
-      return { id: foundConversation.id, ...foundConversation.data() } as Conversation;
-    } else {
-      const newConversation: Omit<Conversation, 'id'> = {
-        type: 'private',
-        participants: [userId, otherUserId],
-        lastMessage: null,
-        unreadCount: 0,
-        typingUsers: [],
-      };
-      const docRef = await addDoc(collection(db, `artifacts/${appId}/conversations`), newConversation);
-      toast.success("New conversation created!");
-      return { id: docRef.id, ...newConversation };
+  const handleAcceptCall = async () => {
+    if (!incomingCallMessage?.callData || !incomingCallMessage.conversationId || !userId) {
+      toast.error('Invalid call data.');
+      setIncomingCallMessage(null);
+      setLastProcessedCallMessageId(null);
+      if (stopRingtone) {
+        try {
+          stopRingtone();
+          setStopRingtone(null);
+        } catch (error) {
+          console.warn('Error stopping ringtone:', error);
+        }
+      }
+      return;
     }
-  }, [userId]);
+
+    try {
+      // Check media permissions
+      const permissions = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: incomingCallMessage.callData.callType === 'video',
+      });
+      permissions.getTracks().forEach((track) => track.stop());
+
+      // Update Firestore with accepted status
+      const messageDocRef = doc(
+        db,
+        `artifacts/${appId}/conversations/${incomingCallMessage.conversationId}/messages`,
+        incomingCallMessage.id
+      );
+      const messageDoc = await getDoc(messageDocRef);
+      if (!messageDoc.exists()) {
+        console.warn('Message document does not exist:', incomingCallMessage.id);
+        toast.error('Call message no longer exists.');
+        setIncomingCallMessage(null);
+        setLastProcessedCallMessageId(null);
+        if (stopRingtone) {
+          try {
+            stopRingtone();
+            setStopRingtone(null);
+          } catch (error) {
+            console.warn('Error stopping ringtone:', error);
+          }
+        }
+        return;
+      }
+
+      await updateDoc(messageDocRef, {
+        callData: { ...incomingCallMessage.callData, status: 'accepted' },
+        content: `Accepted ${incomingCallMessage.callData.callType} call`,
+        timestamp: serverTimestamp(),
+      });
+
+      const conversationDocRef = doc(db, `artifacts/${appId}/conversations`, incomingCallMessage.conversationId);
+      await updateDoc(conversationDocRef, {
+        lastMessage: {
+          ...incomingCallMessage,
+          callData: { ...incomingCallMessage.callData, status: 'accepted' },
+          content: `Accepted ${incomingCallMessage.callData.callType} call`,
+          timestamp: serverTimestamp(),
+        },
+      });
+
+      // Ensure the conversation is selected
+      const conv = conversations.find((c) => c.id === incomingCallMessage.conversationId);
+      const otherUser = allUsers.find((u) => u.id === incomingCallMessage.senderId);
+      if (conv && otherUser) {
+        setSelectedConversation(conv);
+        setSelectedOtherUser(otherUser);
+        setIsSidebarOpen(window.innerWidth < 1024 ? false : true);
+      } else {
+        console.error('Conversation or user not found:', { conv, otherUser });
+        toast.error('Failed to open call conversation.');
+        setIncomingCallMessage(null);
+        setLastProcessedCallMessageId(null);
+        if (stopRingtone) {
+          try {
+            stopRingtone();
+            setStopRingtone(null);
+          } catch (error) {
+            console.warn('Error stopping ringtone:', error);
+          }
+        }
+        return;
+      }
+
+      setIncomingCallMessage(null);
+      setLastProcessedCallMessageId(null);
+      if (stopRingtone) {
+        try {
+          stopRingtone();
+          setStopRingtone(null);
+        } catch (error) {
+          console.warn('Error stopping ringtone:', error);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error accepting call:', error);
+      toast.error('Failed to accept call.');
+      handleRejectCall();
+    }
+  };
+
+  const handleRejectCall = async () => {
+    if (!incomingCallMessage?.callData || !incomingCallMessage.conversationId) return;
+
+    try {
+      const messageDocRef = doc(
+        db,
+        `artifacts/${appId}/conversations/${incomingCallMessage.conversationId}/messages`,
+        incomingCallMessage.id
+      );
+      const messageDoc = await getDoc(messageDocRef);
+      if (!messageDoc.exists()) {
+        console.warn('Message document does not exist:', incomingCallMessage.id);
+        setIncomingCallMessage(null);
+        setLastProcessedCallMessageId(null);
+        if (stopRingtone) {
+          try {
+            stopRingtone();
+            setStopRingtone(null);
+          } catch (error) {
+            console.warn('Error stopping ringtone:', error);
+          }
+        }
+        return;
+      }
+
+      await updateDoc(messageDocRef, {
+        callData: { ...incomingCallMessage.callData, status: 'rejected' },
+        content: `Rejected ${incomingCallMessage.callData.callType} call`,
+        timestamp: serverTimestamp(),
+      });
+
+      const conversationDocRef = doc(db, `artifacts/${appId}/conversations`, incomingCallMessage.conversationId);
+      await updateDoc(conversationDocRef, {
+        lastMessage: {
+          ...incomingCallMessage,
+          callData: { ...incomingCallMessage.callData, status: 'rejected' },
+          content: `Rejected ${incomingCallMessage.callData.callType} call`,
+          timestamp: serverTimestamp(),
+        },
+      });
+
+      setIncomingCallMessage(null);
+      setLastProcessedCallMessageId(null);
+      if (stopRingtone) {
+        try {
+          stopRingtone();
+          setStopRingtone(null);
+        } catch (error) {
+          console.warn('Error stopping ringtone:', error);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error rejecting call:', error);
+      toast.error('Failed to reject call.');
+    }
+  };
+
+  const findOrCreateConversation = useCallback(
+    async (otherUserId: string): Promise<Conversation> => {
+      if (!userId) throw new Error('Current user ID is not available.');
+
+      const q = query(
+        collection(db, `artifacts/${appId}/conversations`),
+        where('participants', 'array-contains', userId),
+        where('type', '==', 'private')
+      );
+
+      const existingConversations = await getDocs(q);
+
+      const foundConversation = existingConversations.docs.find((docSnap) => {
+        const data = docSnap.data();
+        const participants = data.participants as string[];
+        return participants.length === 2 && participants.includes(otherUserId);
+      });
+
+      if (foundConversation) {
+        return { id: foundConversation.id, ...foundConversation.data() } as Conversation;
+      } else {
+        const newConversation: Omit<Conversation, 'id'> = {
+          type: 'private',
+          participants: [userId, otherUserId],
+          lastMessage: null,
+          unreadCount: 0,
+          typingUsers: [],
+        };
+        const docRef = await addDoc(collection(db, `artifacts/${appId}/conversations`), newConversation);
+        toast.success('New conversation created!');
+        return { id: docRef.id, ...newConversation };
+      }
+    },
+    [userId]
+  );
 
   const resetChatState = useCallback(() => {
     setMessages([]);
     setIsLoadingMessages(true);
   }, []);
 
-  const handleSelectUserForChat = useCallback(async (user: User) => {
-    if (!currentUser || !userId) {
-      toast.error("You must be logged in to start a conversation.");
-      return;
-    }
-    if (user.id === userId) {
-      toast.info("You cannot chat with yourself.");
-      return;
-    }
+  const handleSelectUserForChat = useCallback(
+    async (user: User) => {
+      if (!currentUser || !userId) {
+        toast.error('You must be logged in to start a conversation.');
+        return;
+      }
+      if (user.id === userId) {
+        toast.info('You cannot chat with yourself.');
+        return;
+      }
 
-    try {
-      resetChatState();
-      const conv = await findOrCreateConversation(user.id);
-      setSelectedConversation(conv);
-      setSelectedOtherUser(user);
-      setIsSidebarOpen(window.innerWidth < 1024 ? false : true);
-    } catch (error) {
-      console.error("Error selecting user for chat:", error);
-      toast.error("Failed to start conversation.");
-    }
-  }, [currentUser, userId, findOrCreateConversation, resetChatState]);
+      try {
+        resetChatState();
+        const conv = await findOrCreateConversation(user.id);
+        setSelectedConversation(conv);
+        setSelectedOtherUser(user);
+        setIsSidebarOpen(window.innerWidth < 1024 ? false : true);
+      } catch (error) {
+        console.error('Error selecting user for chat:', error);
+        toast.error('Failed to start conversation.');
+      }
+    },
+    [currentUser, userId, findOrCreateConversation, resetChatState]
+  );
 
   const handleSendMessage = async (text: string, type: 'text' | 'image' | 'video' | 'file', file?: File) => {
     if (!selectedConversation || !currentUser) {
-      toast.error("Please select a conversation and ensure you are logged in to send messages.");
+      toast.error('Please select a conversation and ensure you are logged in to send messages.');
       return;
     }
 
@@ -181,11 +421,12 @@ const ChatPage: React.FC = () => {
     let messageData: Partial<Message> = {
       id: messageId,
       senderId: currentUser.id,
-      receiverId: selectedConversation.participants.find(p => p !== currentUser.id) || '',
+      receiverId: selectedConversation.participants.find((p) => p !== currentUser.id) || '',
       content: messageContent,
       timestamp: timestamp.toISOString(),
       type: type,
       readBy: [currentUser.id],
+      conversationId: selectedConversation.id,
     };
 
     if (type !== 'text' && file) {
@@ -193,8 +434,8 @@ const ChatPage: React.FC = () => {
         const { cloudName, uploadPreset } = cloudinaryConfig;
 
         if (!cloudName || !uploadPreset) {
-          toast.error("Cloudinary configuration missing. Cannot upload files.");
-          console.error("Cloudinary upload_preset or cloud_name is not set.");
+          toast.error('Cloudinary configuration missing.');
+          console.error('Cloudinary upload_preset or cloud_name is not set.');
           return;
         }
 
@@ -203,10 +444,7 @@ const ChatPage: React.FC = () => {
         formData.append('file', file);
         formData.append('upload_preset', uploadPreset);
 
-        const response = await axios.post(
-          `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
-          formData
-        );
+        const response = await axios.post(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, formData);
 
         if (response.data && response.data.secure_url) {
           if (type === 'image') {
@@ -224,7 +462,7 @@ const ChatPage: React.FC = () => {
           messageData.content = messageContent;
           toast.success(`${file.name} uploaded!`);
         } else {
-          throw new Error("Cloudinary upload failed: No secure_url in response.");
+          throw new Error('Cloudinary upload failed: No secure_url in response.');
         }
       } catch (error) {
         console.error('Cloudinary upload error:', error);
@@ -238,30 +476,36 @@ const ChatPage: React.FC = () => {
     if (!messageData.fileName) messageData.fileName = null;
 
     try {
-      const messagesCollectionRef = collection(db, `artifacts/${appId}/conversations/${selectedConversation.id}/messages`);
+      const messagesCollectionRef = collection(
+        db,
+        `artifacts/${appId}/conversations/${selectedConversation.id}/messages`
+      );
       await addDoc(messagesCollectionRef, {
         ...messageData,
-        timestamp: timestamp,
+        timestamp: serverTimestamp(),
       });
 
       const conversationDocRef = doc(db, `artifacts/${appId}/conversations`, selectedConversation.id);
       await updateDoc(conversationDocRef, {
         lastMessage: {
           content: messageData.content,
-          timestamp: timestamp,
+          timestamp: serverTimestamp(),
           senderId: messageData.senderId,
           type: messageData.type,
           imageUrl: messageData.imageUrl || null,
           fileUrl: messageData.fileUrl || null,
           fileName: messageData.fileName || null,
+          conversationId: selectedConversation.id,
         },
         typingUsers: [],
       });
 
-      setSelectedConversation(prev => prev ? { ...prev, lastMessage: messageData as Message, typingUsers: [] } : null);
+      setSelectedConversation((prev) =>
+        prev ? { ...prev, lastMessage: messageData as Message, typingUsers: [] } : null
+      );
     } catch (error) {
-      console.error("Error sending message:", error);
-      toast.error("Failed to send message.");
+      console.error('Error sending message:', error);
+      toast.error('Failed to send message.');
     }
   };
 
@@ -277,7 +521,6 @@ const ChatPage: React.FC = () => {
       navigate('/');
       setShowLogoutModal(false);
     } catch (error) {
-      // Error handled by toast in authStore
       setShowLogoutModal(false);
     }
   };
@@ -409,6 +652,23 @@ const ChatPage: React.FC = () => {
           </div>
         )}
       </motion.main>
+      {incomingCallMessage && (
+        <CallNotificationModal
+          message={incomingCallMessage}
+          sender={
+            allUsers.find((user) => user.id === incomingCallMessage.senderId) || {
+              id: incomingCallMessage.senderId,
+              username: 'Unknown',
+              email: 'unknown@example.com',
+              profilePicture: null,
+              isOnline: false,
+              createdAt: new Date().toISOString(),
+            }
+          }
+          onAccept={handleAcceptCall}
+          onReject={handleRejectCall}
+        />
+      )}
       <AnimatePresence>
         {showLogoutModal && (
           <motion.div

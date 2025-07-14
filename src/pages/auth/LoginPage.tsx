@@ -43,7 +43,7 @@ const LoginPage: React.FC = () => {
     if (currentUser) {
       console.log('Navigating to /chat');
       navigate('/chat');
-      toast.success('Logged in successfully!');
+      // toast.success('Logged in successfully!');
     }
   }, [currentUser, navigate]);
 
