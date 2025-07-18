@@ -1,52 +1,67 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect, useMemo, Suspense, useRef } from 'react';
+import { BrowserRouter as Router } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { AgoraRTCProvider } from 'agora-rtc-react';
-import AgoraRTC from 'agora-rtc-sdk-ng';
-import { useThemeStore } from './store/themeStore';
-import { useAuthStore } from './store/authStore';
-import LoginPage from './pages/auth/LoginPage';
-import RegisterPage from './pages/auth/RegisterPage';
-import ChatPage from './pages/chat/ChatPage';
-import SettingsPage from './pages/SettingsPage';
-import ProfilePage from './pages/ProfilePage';
-import NotFoundPage from './pages/NotFoundPage';
 import { motion } from 'framer-motion';
-import type { IAgoraRTCClient } from 'agora-rtc-react';
-
-const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentUser, loadingAuth, initializeAuth } = useAuthStore();
-
-  useEffect(() => {
-    const unsubscribe = initializeAuth();
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, [initializeAuth]);
-
-  if (loadingAuth) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background text-text-primary text-lg">
-        Loading authentication...
-      </div>
-    );
-  }
-
-  return currentUser ? <>{children}</> : <Navigate to="/" />;
-};
+import { useThemeStore } from './shared/store/themeStore';
+import { useAuthStore } from './shared/store/authStore';
+import AppRouter from './router';
+import LoadingSpinner from './shared/components/LoadingSpinner';
 
 const App: React.FC = () => {
   const { currentTheme } = useThemeStore();
-  const agoraClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' }) as unknown as IAgoraRTCClient;
+  const { loadingAuth, currentUser, initializeAuthListener, setOnlineStatus } = useAuthStore();
+
+  const currentUserIdRef = useRef(currentUser?.id);
+
+  const authListenerInitializedRef = useRef(false);
 
   useEffect(() => {
-    document.documentElement.className = '';
-    document.documentElement.classList.add(`theme-${currentTheme}`);
+    currentUserIdRef.current = currentUser?.id;
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!authListenerInitializedRef.current) {
+      initializeAuthListener();
+      authListenerInitializedRef.current = true;
+    }
+
+    const handleVisibilityChange = () => {
+      if (currentUserIdRef.current) {
+        if (document.visibilityState === 'visible') {
+          console.log('[App] Tab visible, setting user online.');
+          setOnlineStatus(true);
+        } else {
+          console.log('[App] Tab hidden, setting user offline.');
+          setOnlineStatus(false);
+        }
+      }
+    };
+
+    const handleBeforeUnload = () => {
+      if (currentUserIdRef.current) {
+        console.log('[App] Before unload, setting user offline.');
+        // Call directly without the debouncing timeout from the store's setOnlineStatus
+        useAuthStore.getState().setOnlineStatus(false);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      console.log('[App] Online status listeners cleaned up.');
+    };
+  }, [initializeAuthListener, setOnlineStatus]);
+
+  useEffect(() => {
+    document.documentElement.className = `theme-${currentTheme}`;
   }, [currentTheme]);
 
-  const getToastTheme = (theme: string): 'light' | 'dark' | 'colored' => {
-    switch (theme) {
+  const toastTheme = useMemo((): 'light' | 'dark' | 'colored' => {
+    switch (currentTheme) {
       case 'crystal-light':
         return 'light';
       case 'midnight-glow':
@@ -57,61 +72,53 @@ const App: React.FC = () => {
       default:
         return 'light';
     }
-  };
+  }, [currentTheme]);
 
-  return (
-    <AgoraRTCProvider client={agoraClient}>
+  // Only show the full-page spinner if `loadingAuth` is true.
+  if (loadingAuth) {
+    console.log('[App] App is loading auth state, showing full-page spinner.');
+    return (
       <motion.div
-        className="min-h-screen bg-background text-text-primary transition-colors duration-300"
+        className="fixed inset-0 flex flex-col items-center justify-center bg-background text-text-secondary z-[9999]" // Added flex, items-center, justify-center, and fixed/inset-0
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.5 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.3 }}
       >
-        <Router>
-          <Routes>
-            <Route path="/" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route
-              path="/chat"
-              element={
-                <PrivateRoute>
-                  <ChatPage />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <PrivateRoute>
-                  <SettingsPage />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <PrivateRoute>
-                  <ProfilePage />
-                </PrivateRoute>
-              }
-            />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </Router>
-        <ToastContainer
-          position="bottom-right"
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-          theme={getToastTheme(currentTheme)}
-        />
+        <LoadingSpinner size={24} thickness={4} color="text-primary" /> {/* Example props */}
+        <p className="mt-4 text-lg font-medium">Initializing application...</p>
       </motion.div>
-    </AgoraRTCProvider>
+    );
+  }
+
+  console.log('[App] Auth loading complete, rendering AppRouter.');
+  return (
+    <motion.div
+      className="min-h-screen transition-colors duration-300"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
+      <Router>
+        <Suspense fallback={<LoadingSpinner size={16} thickness={3} color="text-primary" />}> {/* Spinner for Suspense */}
+          <AppRouter />
+        </Suspense>
+      </Router>
+
+      <ToastContainer
+        position="bottom-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme={toastTheme}
+        className="text-sm"
+      />
+    </motion.div>
   );
 };
 

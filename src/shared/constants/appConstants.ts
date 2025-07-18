@@ -1,0 +1,5 @@
+export const FILE_UPLOAD_LIMITS = {
+  IMAGE_MAX_SIZE_MB: 2,
+  VIDEO_MAX_SIZE_MB: 6,
+  AUDIO_MAX_SIZE_MB: 6,
+};

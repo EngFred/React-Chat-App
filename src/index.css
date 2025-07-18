@@ -8,102 +8,146 @@ html, body {
   height: 100%;
   margin: 0;
   padding: 0;
-  overflow: hidden;
+  /* Ensure the body expands to fill the screen */
+  min-height: 100vh;
 }
 
 #root {
   height: 100%;
   display: flex;
   flex-direction: column;
+  /* Do NOT set overflow-y here, it should be managed by specific components like ChatPage */
+  overflow-x: hidden;
+  position: relative;
 }
 
-.scrollbar-hidden::-webkit-scrollbar {
-  display: none;
-}
-.scrollbar-hidden {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+#root::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--color-background);
+  z-index: -1;
 }
 
-.messages-container::-webkit-scrollbar {
-  display: none;
+/* Apply no-scroll class to specific pages (e.g., ChatPage) */
+/* This is typically applied to the body or main content wrapper when a modal/overlay is open */
+.no-scroll {
+  overflow: hidden;
+  height: 100%;
 }
+
+/* Custom Scrollbar Styles */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px; /* Width of the scrollbar */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: var(--color-background); /* Track color, matches page background */
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-border); /* Thumb color, subtle and matches border */
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary); /* Thumb color on hover */
+}
+
+/* For Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin; /* "auto" or "thin" */
+  scrollbar-color: var(--color-border) var(--color-background); /* thumb-color track-color */
+}
+
+/* Auth forms and messages container can use this too */
+.auth-form-scroll,
 .messages-container {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  /* Use custom-scrollbar for consistent styling */
+  @apply custom-scrollbar;
+  overflow-y: auto;
 }
 
 /* Crystal Light Theme (Inspired by Signal Light) */
 .theme-crystal-light {
-  --color-primary: #3B82F6; /* Blue-500: Vibrant buttons */
-  --color-secondary: #60A5FA; /* Blue-400: Hover states */
-  --color-accent: #EC4899; /* Pink-500: Notifications */
-  --color-background: #F8FAFC; /* Slate-50: Clean background */
-  --color-text-primary: #1E293B; /* Slate-800: High-contrast text */
-  --color-text-secondary: #64748B; /* Slate-500: Subtle text */
-  --color-border: #E2E8F0; /* Slate-200: Soft borders */
-  --color-input-bg: #F1F5F9; /* Slate-100: Input fields */
-  --color-message-bg-self: #DBEAFE; /* Blue-100: Self-message bubble */
-  --color-message-bg-other: #E5E7EB; /* Gray-200: Other-message bubble */
-  --color-button-text: #FFFFFF; /* White: Button text/icons */
+  --color-primary: #3B82F6;
+  --color-primary-rgb: 59, 130, 246; /* RGB for #3B82F6 */
+  --color-secondary: #60A5FA;
+  --color-accent: #EC4899;
+  --color-background: #F8FAFC;
+  --color-text-primary: #1E293B;
+  --color-text-secondary: #64748B;
+  --color-border: #E2E8F0;
+  --color-input-bg: #F1F5F9;
+  --color-message-bg-self: #DBEAFE;
+  --color-message-bg-other: #E5E7EB;
+  --color-button-text: #FFFFFF;
 }
 
 /* Midnight Glow Theme (Inspired by Discord Dark) */
 .theme-midnight-glow {
-  --color-primary: #7289DA; /* Discord blurple */
-  --color-secondary: #99AAB5; /* Discord greyple */
-  --color-accent: #43B581; /* Discord green */
-  --color-background: #2C2F33; /* Discord dark gray */
-  --color-text-primary: #FFFFFF; /* White: High-contrast text */
-  --color-text-secondary: #B9BBBE; /* Discord muted gray */
-  --color-border: #4F545C; /* Discord darker gray */
-  --color-input-bg: #36393F; /* Discord input gray */
-  --color-message-bg-self: #4F545C; /* Discord self-message */
-  --color-message-bg-other: #32353B; /* Discord other-message */
-  --color-button-text: #FFFFFF; /* White: Button text/icons */
+  --color-primary: #7289DA;
+  --color-primary-rgb: 114, 137, 218; /* RGB for #7289DA */
+  --color-secondary: #99AAB5;
+  --color-accent: #43B581;
+  --color-background: #2C2F33;
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #B9BBBE;
+  --color-border: #4F545C;
+  --color-input-bg: #36393F;
+  --color-message-bg-self: #4F545C;
+  --color-message-bg-other: #32353B;
+  --color-button-text: #FFFFFF;
 }
 
 /* Ocean Breeze Theme (Inspired by Telegram Dark) */
 .theme-ocean-breeze {
-  --color-primary: #00A1AD; /* Telegram teal */
-  --color-secondary: #33C4B6; /* Telegram lighter teal */
-  --color-accent: #FF3B30; /* Telegram red */
-  --color-background: #1C2526; /* Telegram dark blue-gray */
-  --color-text-primary: #E1E8ED; /* Telegram light gray */
-  --color-text-secondary: #A3BFFA; /* Telegram muted blue */
-  --color-border: #2A3B3D; /* Telegram darker border */
-  --color-input-bg: #2A3B3D; /* Telegram input */
-  --color-message-bg-self: #005F6A; /* Telegram self-message */
-  --color-message-bg-other: #2A3B3D; /* Telegram other-message */
-  --color-button-text: #FFFFFF; /* White: Button text/icons */
+  --color-primary: #00A1AD;
+  --color-primary-rgb: 0, 161, 173; /* RGB for #00A1AD */
+  --color-secondary: #33C4B6;
+  --color-accent: #FF3B30;
+  --color-background: #1C2526;
+  --color-text-primary: #E1E8ED;
+  --color-text-secondary: #A3BFFA;
+  --color-border: #2A3B3D;
+  --color-input-bg: #2A3B3D;
+  --color-message-bg-self: #005F6A;
+  --color-message-bg-other: #2A3B3D;
+  --color-button-text: #FFFFFF;
 }
 
 /* Sunset Glow Theme (Inspired by WhatsApp Dark) */
 .theme-sunset-glow {
-  --color-primary: #00A884; /* WhatsApp green */
-  --color-secondary: #00C4B4; /* WhatsApp lighter green */
-  --color-accent: #FF6C6C; /* WhatsApp red */
-  --color-background: #0B141A; /* WhatsApp dark gray */
-  --color-text-primary: #E9EDEF; /* WhatsApp light gray */
-  --color-text-secondary: #8696A0; /* WhatsApp muted gray */
-  --color-border: #1F2A2E; /* WhatsApp border */
-  --color-input-bg: #1F2A2E; /* WhatsApp input */
-  --color-message-bg-self: #005C4B; /* WhatsApp self-message */
-  --color-message-bg-other: #1F2A2E; /* WhatsApp other-message */
-  --color-button-text: #FFFFFF; /* White: Button text/icons */
+  --color-primary: #00A884;
+  --color-primary-rgb: 0, 168, 132; /* RGB for #00A884 */
+  --color-secondary: #00C4B4;
+  --color-accent: #FF6C6C;
+  --color-background: #0B141A;
+  --color-text-primary: #E9EDEF;
+  --color-text-secondary: #8696A0;
+  --color-border: #1F2A2E;
+  --color-input-bg: #1F2A2E;
+  --color-message-bg-self: #005C4B;
+  --color-message-bg-other: #1F2A2E;
+  --color-button-text: #FFFFFF;
 }
 
 /* Slate Elegance Theme (Inspired by Snapchat Dark) */
 .theme-slate-elegance {
-  --color-primary: #FFFC00; /* Snapchat yellow */
-  --color-secondary: #FFFF66; /* Snapchat lighter yellow */
-  --color-accent: #00DDEB; /* Snapchat cyan */
-  --color-background: #121212; /* Snapchat near-black */
-  --color-text-primary: #FFFFFF; /* White: High-contrast text */
-  --color-text-secondary: #B0B0B0; /* Snapchat muted gray */
-  --color-border: #2A2A2A; /* Snapchat border */
-  --color-input-bg: #2A2A2A; /* Snapchat input */
-  --color-message-bg-self: #3C3C3C; /* Snapchat self-message */
-  --color-message-bg-other: #2A2A2A; /* Snapchat other-message */
-  --color-button-text: #1E293B; /* Slate-800: High-contrast button text/icons */
+  --color-primary: #FFFC00;
+  --color-primary-rgb: 255, 252, 0; /* RGB for #FFFC00 */
+  --color-secondary: #FFFF66;
+  --color-accent: #00DDEB;
+  --color-background: #121212;
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #B0B0B0;
+  --color-border: #2A2A2A;
+  --color-input-bg: #2A2A2A;
+  --color-message-bg-self: #3C3C3C;
+  --color-message-bg-other: #2A2A2A;
+  --color-button-text: #1E293B;
 }
