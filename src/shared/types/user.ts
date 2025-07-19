@@ -1,3 +1,6 @@
+/**
+ * Defines the structure for a User object used across the application.
+ */
 export interface User {
   id: string;
   username: string;

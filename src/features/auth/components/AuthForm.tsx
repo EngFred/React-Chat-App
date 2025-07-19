@@ -1,12 +1,15 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import Button from '../../../shared/components/Button'; // Ensure this is the updated Button component
+import Button from '../../../shared/components/Button';
 
+/**
+ * Defines the properties for the AuthForm component.
+ */
 interface AuthFormProps {
   title: string;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
-  isSubmitting: boolean; // This prop will now map to isLoading on the Button
+  isSubmitting: boolean;
   submitText: string;
   footerText: string;
   footerLinkText: string;
@@ -15,6 +18,12 @@ interface AuthFormProps {
   isRegister?: boolean;
 }
 
+/**
+ * AuthForm is a reusable presentational component for authentication forms (login and registration).
+ * It provides a consistent layout, styling, and basic form structure, including a title,
+ * form fields (passed as children), a submit button with loading state, and a footer link
+ * for navigation between login and registration.
+ */
 const AuthForm: React.FC<AuthFormProps> = React.memo(
   ({ title, onSubmit, isSubmitting, submitText, footerText, footerLinkText, footerLinkTo, children, isRegister }) => {
     return (
@@ -40,14 +49,14 @@ const AuthForm: React.FC<AuthFormProps> = React.memo(
             <div className={`col-span-1 ${isRegister ? 'md:col-span-2' : ''}`}>
               <Button
                 type="submit"
-                disabled={isSubmitting} // Still disable the button when submitting
+                disabled={isSubmitting}
                 variant="primary"
                 className="w-full mt-2"
                 title={isSubmitting ? `${submitText}ing...` : submitText}
-                isLoading={isSubmitting} // Pass the isSubmitting state to the new isLoading prop
-                loadingText={`${submitText}ing...`} // Customize the loading text
+                isLoading={isSubmitting}
+                loadingText={`${submitText}ing...`}
               >
-                {submitText} {/* This will be shown when not loading */}
+                {submitText}
               </Button>
             </div>
 

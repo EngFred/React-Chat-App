@@ -10,6 +10,9 @@ import MessageBubble from './MessageBubble';
 import ChatWindowHeader from './ChatWindowHeader';
 import { getMessageSender } from '../utils/chatHelpers';
 
+/**
+ * Defines the properties for the ChatWindow component.
+ */
 interface ChatWindowProps {
   conversation: Conversation;
   messages: Message[];
@@ -24,6 +27,11 @@ interface ChatWindowProps {
   isSendingMessage: boolean;
 }
 
+/**
+ * ChatWindow component displays the active conversation, including messages and the chat input.
+ * It handles message rendering, scrolling to the latest message, and integrating
+ * with various chat functionalities like sending messages and typing status.
+ */
 const ChatWindow: React.FC<ChatWindowProps> = ({
   conversation,
   messages,
@@ -39,16 +47,20 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  /**
+   * Effect hook to scroll to the bottom of the messages list whenever
+   * new messages are added or the loading state changes.
+   */
   useEffect(() => {
     if (!isLoadingMessages) {
       messagesEndRef.current?.scrollIntoView({ block: 'end' });
     }
   }, [messages, isLoadingMessages]);
 
-  // Define motion props based on screen size
+  // Define motion props based on screen size for conditional animation
   const isMobile = window.innerWidth < 768;
   const motionProps = isMobile
-    ? {} // No animations on mobile
+    ? {} // No animations on mobile for smoother transitions
     : {
         initial: { x: '100%', opacity: 0 },
         animate: { x: '0%', opacity: 1 },
@@ -83,9 +95,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
           </div>
         ) : (
           messages.map((message) => {
+            // Determine the sender of the message for display purposes
             const sender = getMessageSender(message, currentUser, allUsers);
 
-            if (!sender) return null;
+            if (!sender) return null; // Should ideally not happen if data is consistent
 
             return (
               <MessageBubble
@@ -97,6 +110,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
             );
           })
         )}
+        {/* Ref for auto-scrolling to the latest message */}
         <div ref={messagesEndRef} className="pb-2" />
       </div>
 

@@ -1,19 +1,22 @@
+/**
+ * Defines the structure for a message object within the chat feature.
+ * Messages can be of various types, including text, image, video, or audio,
+ * and include details about sender, receiver, content, and status.
+ */
 export interface Message {
   id: string;
   sender_id: string;
   receiver_id: string;
-  content: string; // For text, or a description like "Image" for media
+  content: string;
   timestamp: string;
-  type: 'text' | 'image' | 'video' | 'audio'; // Expanded type
+  type: 'text' | 'image' | 'video' | 'audio';
   read_by?: string[] | null;
   conversation_id?: string;
   created_at?: string;
   status?: 'sending' | 'sent' | 'failed';
-
-  // New fields for media messages
   media_url?: string | null;
-  thumbnail_url?: string | null; // For videos/images if you generate thumbs
+  thumbnail_url?: string | null;
   media_type?: 'image' | 'video' | 'audio' | null; // Redundant with 'type' but good for clarity
-  dimensions?: { width: number; height: number; } | null; // For images/videos
-  duration?: number | null; // For videos/audio in seconds
+  dimensions?: { width: number; height: number; } | null;
+  duration?: number | null;
 }

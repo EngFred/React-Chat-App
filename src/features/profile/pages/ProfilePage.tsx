@@ -13,15 +13,29 @@ import ProfilePictureSection from '../components/ProfilePictureSection';
 import ProfileFormFields from '../components/ProfileFormFields';
 import ProfileActions from '../components/ProfileActions';
 
+// Zod schema for validating the profile form inputs.
 const profileSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
 });
 
+// Infer the TypeScript type from the Zod schema for type safety.
 type ProfileFormInputs = z.infer<typeof profileSchema>;
 
+/**
+ * @function ProfilePage
+ * @description This component renders the user's profile editing page.
+ * It allows users to update their profile picture and username, and also provides a logout option.
+ * It integrates with `react-hook-form` for form management, `zod` for validation,
+ * `react-toastify` for notifications, and `framer-motion` for animations.
+ * It fetches and manages profile data using the `useProfile` custom hook.
+ *
+ * @returns {React.FC} A React functional component for the Profile page.
+ */
 const ProfilePage: React.FC = () => {
+  // Get the current authenticated user from the authentication store.
   const { currentUser } = useAuthStore();
 
+  // Custom hook for all profile-related logic (fetching, updating, uploading, logging out).
   const {
     profileData,
     isLoadingProfile,
@@ -34,37 +48,54 @@ const ProfilePage: React.FC = () => {
     logout,
   } = useProfile();
 
+  // State for controlling the visibility of confirmation dialogs.
   const [showConfirmSaveDialog, setShowConfirmSaveDialog] = useState(false);
   const [showConfirmLogoutDialog, setShowConfirmLogoutDialog] = useState(false);
 
+  // `react-hook-form` setup for form handling.
   const {
     register,
     handleSubmit,
     setValue,
     formState: { errors },
-    getValues,
+    getValues, // Used to get current form values without re-rendering.
   } = useForm<ProfileFormInputs>({
-    resolver: zodResolver(profileSchema),
+    resolver: zodResolver(profileSchema), // Integrate Zod for schema validation.
   });
 
-  // This useEffect re-populates the username field when profileData changes
-  // or after a username update is complete.
+  /**
+   * Effect hook to populate the form fields with `profileData` once it's loaded.
+   * Ensures that the form is pre-filled with the user's current username.
+   * It also prevents resetting the form while an update is in progress.
+   */
   useEffect(() => {
     if (profileData && !isUpdatingUsername) {
       setValue('username', profileData.username);
     }
-  }, [profileData, isUpdatingUsername, setValue]);
+  }, [profileData, isUpdatingUsername, setValue]); // Dependencies for the effect.
 
-  // Handler for immediate profile picture upload
+  /**
+   * Handles the change event for the profile picture input.
+   * It calls the `uploadProfilePicture` function from `useProfile` to upload the new file.
+   * Error handling for the upload is managed within the `useProfile` hook.
+   *
+   * @param {File} file - The selected image file.
+   */
   const handleProfilePictureChange = async (file: File) => {
     try {
-      await uploadProfilePicture(file); // Trigger the upload and profile update
+      await uploadProfilePicture(file);
     } catch (error) {
-      // Error toast is handled in useProfile hook
+      // Error toast is handled in useProfile hook, so no additional toast here.
     }
   };
 
-  // This function now only handles username save confirmation
+  /**
+   * Callback for form submission. It first checks if the username has actually changed.
+   * If changes are detected, it opens a confirmation dialog before proceeding with the save.
+   * If no changes, it shows an info toast.
+   *
+   * @param {ProfileFormInputs} data - The validated form data (username).
+   */
   const handleSaveConfirmation: SubmitHandler<ProfileFormInputs> = async () => {
     const currentUsername = getValues('username');
     const hasUsernameChanged = profileData?.username !== currentUsername;
@@ -76,49 +107,62 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  // This function now only confirms and triggers username update
+  /**
+   * Confirms the save action after user confirmation in the dialog.
+   * It calls the `updateUsername` function from `useProfile`.
+   */
   const confirmSave = async () => {
-    setShowConfirmSaveDialog(false);
+    setShowConfirmSaveDialog(false); // Close the dialog.
 
     if (!currentUser) {
       toast.error('No authenticated user found.');
       return;
     }
 
-    const data = getValues();
+    const data = getValues(); // Get the latest form values.
     try {
       await updateUsername(data.username);
     } catch (error: any) {
       console.error('Username update submission error:', error.message);
+      // Toast for error is handled in useProfile.
     }
   };
 
+  /**
+   * Opens the logout confirmation dialog.
+   */
   const handleLogoutConfirmation = () => {
     setShowConfirmLogoutDialog(true);
   };
 
+  /**
+   * Confirms the logout action after user confirmation in the dialog.
+   * It calls the `logout` function from `useProfile`.
+   */
   const confirmLogout = async () => {
     setShowConfirmLogoutDialog(false);
     try {
       await logout();
     } catch (error: any) {
       console.error('Error logging out:', error.message);
+      // Toast for error is handled in useProfile.
     }
   };
 
+  // Determine if any asynchronous operation is currently in progress to manage button states.
   const isAnyLoading = isLoadingProfile || isUpdatingUsername || isUploadingPicture || isLoggingOut;
 
-  // Define motion props based on screen size
+  // Define Framer Motion props based on screen size for responsive animations.
   const isMobile = window.innerWidth < 768;
   const containerMotionProps = isMobile
-    ? {} // No animations on mobile
+    ? {} // No animations on mobile for container
     : {
         initial: { opacity: 0 },
         animate: { opacity: 1 },
         transition: { duration: 0.5 },
       };
   const contentMotionProps = isMobile
-    ? {} // No animations on mobile
+    ? {} // No animations on mobile for content card
     : {
         initial: { opacity: 0, y: 50, scale: 0.95 },
         animate: { opacity: 1, y: 0, scale: 1 },
@@ -138,12 +182,14 @@ const ProfilePage: React.FC = () => {
                      relative overflow-hidden"
           {...contentMotionProps}
         >
+          {/* Animated background blobs for visual flair (desktop only) */}
           <div className={`absolute inset-0 z-0 opacity-10 ${isMobile ? '' : 'animate-blob'}`}>
             <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 bg-primary-light rounded-full mix-blend-multiply filter blur-xl opacity-70"></div>
             <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 bg-accent rounded-full mix-blend-multiply filter blur-xl opacity-70"></div>
           </div>
 
           {isLoadingProfile ? (
+            // Loading state for initial profile data fetch.
             <div className="relative z-10 flex flex-col items-center justify-center py-12 text-text-secondary">
               <svg
                 className="animate-spin h-10 w-10 text-primary mb-5"
@@ -194,6 +240,7 @@ const ProfilePage: React.FC = () => {
         </motion.div>
       </div>
 
+      {/* Confirmation Dialog for Save Changes */}
       <Dialog
         isOpen={showConfirmSaveDialog}
         onClose={() => setShowConfirmSaveDialog(false)}
@@ -204,6 +251,7 @@ const ProfilePage: React.FC = () => {
         isConfirming={isUpdatingUsername}
       />
 
+      {/* Confirmation Dialog for Logout */}
       <Dialog
         isOpen={showConfirmLogoutDialog}
         onClose={() => setShowConfirmLogoutDialog(false)}

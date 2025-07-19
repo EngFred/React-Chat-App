@@ -1,20 +1,29 @@
+/**
+ * useAuth is a custom React hook that provides authentication-related functionalities
+ * such as logging in and registering users, managing loading states, and handling UI notifications.
+ * It abstracts away the direct interaction with `authService` and provides a clean interface
+ * for components to perform authentication operations.
+ */
 import { useState } from 'react';
 import { toast } from 'react-toastify';
-
 import { signInUser, signUpUser } from '../service/authService';
-import { useAuthStore } from '../../../shared/store/authStore';
 
 export const useAuth = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // The Firebase Auth listener in authStore will handle state sync.
-  const { } = useAuthStore(); // No longer destructuring fetchAndSyncUserSession
 
+  /**
+   * Handles the user login process.
+   * Sets `isSubmitting` to true during the operation, calls the `signInUser` service,
+   * displays success or error toasts based on the outcome, and then resets `isSubmitting`.
+   * @param email The user's email.
+   * @param password The user's password.
+   * @returns A Promise that resolves when the login attempt is complete.
+   */
   const login = async (email: string, password: string): Promise<void> => {
     setIsSubmitting(true);
     console.log('[useAuth] login: Attempting login via hook.');
     try {
       await signInUser(email, password);
-      // The onAuthStateChanged listener in authStore will fire automatically.
       console.log('[useAuth] login: Firebase sign-in successful. Auth listener will handle global state sync.');
       toast.success('Login successful!');
     } catch (error: any) {
@@ -34,12 +43,20 @@ export const useAuth = () => {
     }
   };
 
+  /**
+   * Handles the user registration process.
+   * Sets `isSubmitting` to true during the operation, calls the `signUpUser` service,
+   * displays success or error toasts, and then resets `isSubmitting`.
+   * @param username The desired username.
+   * @param email The user's email.
+   * @param password The user's password.
+   * @returns A Promise that resolves when the registration attempt is complete.
+   */
   const register = async (username: string, email: string, password: string): Promise<void> => {
     setIsSubmitting(true);
     console.log('[useAuth] register: Attempting registration via hook.');
     try {
       await signUpUser(username, email, password);
-      // The onAuthStateChanged listener in authStore will fire automatically.
       console.log('[useAuth] register: Sign-up request successful. Auth listener will handle global state sync.');
       toast.success('Registration successful!');
     } catch (error: any) {

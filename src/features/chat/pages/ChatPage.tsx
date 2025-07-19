@@ -12,6 +12,11 @@ import LoadingSpinner from '../../../shared/components/LoadingSpinner';
 import { createPortal } from 'react-dom';
 import type { User } from '../../../shared/types/user';
 
+/**
+ * ChatPage component serves as the main entry point for the chat application.
+ * It integrates various chat functionalities using the `useChat` hook,
+ * manages UI states like sidebar visibility, and handles theme switching.
+ */
 const ChatPage: React.FC = () => {
   const { currentTheme, setTheme } = useThemeStore();
   const { currentUser, loadingAuth } = useAuthStore();
@@ -36,43 +41,58 @@ const ChatPage: React.FC = () => {
     setTypingStatus,
   } = useChat();
 
-  // Handle sidebar visibility on resize
+  /**
+   * Effect hook to adjust sidebar visibility based on window width and
+   * whether a conversation is selected. On smaller screens, the sidebar
+   * is hidden when a chat window is open.
+   */
   useEffect(() => {
     const handleResize = () => {
-      // On small screens, show user list by default unless a conversation is selected
-      if (window.innerWidth < 768) {
+      if (window.innerWidth < 768) { // Mobile breakpoint
+        // If a conversation is selected, hide sidebar; otherwise, show it
         setIsSidebarOpen(!selectedConversation);
       } else {
-        // On large screens, always show sidebar
+        // On larger screens, always show sidebar
         setIsSidebarOpen(true);
       }
     };
     window.addEventListener('resize', handleResize);
-    handleResize(); // Initialize on mount
-    return () => window.removeEventListener('resize', handleResize);
-  }, [selectedConversation]);
+    handleResize(); // Call once on mount to set initial state
+    return () => window.removeEventListener('resize', handleResize); // Cleanup
+  }, [selectedConversation]); // Re-run when selectedConversation changes
 
+  /**
+   * Memoized callback to handle selecting a user for chat.
+   * It calls the `selectUserForChat` hook function and adjusts sidebar visibility
+   * on mobile devices to show the chat window.
+   * @param user The user object selected from the list.
+   */
   const handleSelectUserForChat = useCallback(
     (user: User) => {
       selectUserForChat(user);
-      // Hide sidebar on small screens when a user is selected
       if (window.innerWidth < 768) {
-        setIsSidebarOpen(false);
+        setIsSidebarOpen(false); // Hide sidebar on mobile when chat is opened
       }
     },
     [selectUserForChat]
   );
 
+  /**
+   * Memoized callback to handle navigating back to the user list from an active chat.
+   * It calls the `resetChatWindow` hook function and adjusts sidebar visibility
+   * on mobile devices to show the user list.
+   */
   const handleGoBackToUserList = useCallback(() => {
     resetChatWindow();
-    // Show sidebar on small screens when going back
     if (window.innerWidth < 768) {
-      setIsSidebarOpen(true);
+      setIsSidebarOpen(true); // Show sidebar on mobile when going back
     }
   }, [resetChatWindow]);
 
+  // Available themes for the application
   const themes: Theme[] = ['crystal-light', 'midnight-glow', 'ocean-breeze', 'sunset-glow', 'slate-elegance'];
 
+  // Show a loading spinner if authentication data or initial chat data is still loading
   if (loadingAuth || isLoadingInitialData || !currentUser?.id) {
     return createPortal(
       <motion.div

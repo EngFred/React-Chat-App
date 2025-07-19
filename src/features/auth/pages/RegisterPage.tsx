@@ -11,7 +11,11 @@ import InputField from '../../../shared/components/InputField';
 import PasswordInput from '../components/PasswordInput';
 import ThemeSwitcher from '../../../shared/components/ThemeSwitcher';
 
-
+/**
+ * Defines the validation schema for the registration form using Zod.
+ * Ensures username, email, password, and confirmPassword meet specific criteria,
+ * and that password and confirmPassword match.
+ */
 const registerSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
   email: z.string().email('Invalid email address'),
@@ -24,29 +28,44 @@ const registerSchema = z.object({
 
 type RegisterFormInputs = z.infer<typeof registerSchema>;
 
+/**
+ * RegisterPage component provides the user interface for creating a new account.
+ * It uses react-hook-form for form management and Zod for validation, including password confirmation.
+ * Upon successful registration, it navigates the user to the chat page.
+ */
 const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
   const { register: registerUserHook, isSubmitting: isAuthSubmitting } = useAuth();
   const { currentUser } = useAuthStore();
 
   const {
-    register, // Function to register form inputs
-    handleSubmit, // Function to wrap the onSubmit handler
-    formState: { errors }, // Object containing validation errors
+    register,
+    handleSubmit,
+    formState: { errors },
   } = useForm<RegisterFormInputs>({
-    resolver: zodResolver(registerSchema), // Integrate Zod for schema-based validation
-    mode: 'onSubmit', // Validate on form submission
-    reValidateMode: 'onSubmit', // Re-validate on form submission
-    shouldUnregister: false, // Keep field values in state even if unmounted
+    resolver: zodResolver(registerSchema),
+    mode: 'onSubmit',
+    reValidateMode: 'onSubmit',
+    shouldUnregister: false,
   });
 
+  /**
+   * Redirects the user to the chat page if they are already authenticated.
+   * This prevents logged-in users from accessing the registration page.
+   */
   useEffect(() => {
     if (currentUser) {
       console.log('[RegisterPage] currentUser detected, navigating to /chat.');
       navigate('/chat');
     }
-  }, [currentUser, navigate]); // Dependencies: currentUser (from store) and navigate (from hook)
+  }, [currentUser, navigate]);
 
+  /**
+   * Handles the form submission for user registration.
+   * Calls the `register` function from the `useAuth` hook. Error handling and toasts
+   * are managed within the `useAuth` hook.
+   * @param data The form data containing username, email, password, and confirmPassword.
+   */
   const onSubmit: SubmitHandler<RegisterFormInputs> = async (data) => {
     console.log('[RegisterPage] onSubmit: Registration attempt started.');
     try {
@@ -55,7 +74,6 @@ const RegisterPage: React.FC = () => {
     } catch (error) {
       // Error toasts are handled within the useAuth hook.
     }
-    // No finally block needed here for isSubmitting, as useAuth hook manages it.
   };
 
   return (
@@ -67,15 +85,15 @@ const RegisterPage: React.FC = () => {
       footerText="Already have an account?"
       footerLinkText="Login here"
       footerLinkTo="/"
-      isRegister={true} 
+      isRegister={true}
     >
       <InputField
         id="username"
         label="Username"
         type="text"
         placeholder="Choose a username"
-        register={register} 
-        name="username" 
+        register={register}
+        name="username"
         error={errors.username}
       />
       <InputField
@@ -85,13 +103,13 @@ const RegisterPage: React.FC = () => {
         placeholder="your.email@example.com"
         register={register}
         name="email"
-        error={errors.email} 
+        error={errors.email}
       />
       <PasswordInput
         id="password"
         label="Password"
         placeholder="••••••••"
-        register={register} 
+        register={register}
         name="password"
         error={errors.password}
       />
@@ -101,9 +119,8 @@ const RegisterPage: React.FC = () => {
         placeholder="••••••••"
         register={register}
         name="confirmPassword"
-        error={errors.confirmPassword} 
+        error={errors.confirmPassword}
       />
-      {/* ThemeSwitcher is placed here, ensuring its buttons do not trigger form submission */}
       <div className="col-span-full md:col-span-2 mt-6 text-center">
         <ThemeSwitcher />
       </div>

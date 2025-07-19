@@ -1,7 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiArrowLeft, FiMoreVertical, FiVideo, FiPhone } from 'react-icons/fi';
-//import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import ProfilePicture from '../../../shared/components/ProfilePicture';
 import type { User } from '../../../shared/types/user';
@@ -9,25 +8,32 @@ import type { Conversation } from '../types/conversation';
 import dayjs from 'dayjs';
 import { capitalizeFirstLetter } from '../../../shared/utils/helpers';
 
+/**
+ * Defines the properties for the ChatWindowHeader component.
+ */
 interface ChatWindowHeaderProps {
   otherUser: User;
   conversation: Conversation;
   onGoBack: () => void;
 }
 
+/**
+ * ChatWindowHeader component displays the header for the chat window,
+ * including the other user's profile picture, username, online status/last seen,
+ * typing indicator, and call/more options buttons.
+ */
 const ChatWindowHeader: React.FC<ChatWindowHeaderProps> = ({
   otherUser,
   conversation,
   onGoBack,
 }) => {
-  //const navigate = useNavigate();
+  // Check if the other user is currently typing in this conversation
   const isOtherUserTyping = conversation.typing_users?.includes(otherUser.id);
 
-  // const handleCall = useCallback((callType: 'audio' | 'video') => {
-  //   navigate(`/call/${callType}/${otherUser.id}`);
-  // }, [navigate, otherUser.id]);
-
-  // Show toast notification for unimplemented call feature
+  /**
+   * Handles click events for call buttons, showing a toast notification
+   * for features not yet implemented.
+   */
   const handleCallClick = () => {
     toast.info('This feature is not implemented yet.', {
       position: 'bottom-right',
@@ -35,11 +41,11 @@ const ChatWindowHeader: React.FC<ChatWindowHeaderProps> = ({
     });
   };
 
-  // Apply capitalization
   const displayUsername = capitalizeFirstLetter(otherUser.username);
 
   return (
     <div className="flex items-center justify-between p-4 bg-background border-b border-border shadow-sm flex-shrink-0 z-10">
+      {/* Back button for mobile view */}
       <motion.button
         onClick={onGoBack}
         className="lg:hidden p-2 rounded-full hover:bg-input-bg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary"
@@ -54,6 +60,7 @@ const ChatWindowHeader: React.FC<ChatWindowHeaderProps> = ({
         <div>
           <h2 className="text-lg font-semibold text-text-primary">{displayUsername}</h2>
           <AnimatePresence mode="wait">
+            {/* Display typing indicator or online status/last seen */}
             {isOtherUserTyping ? (
               <motion.p
                 key="typing"

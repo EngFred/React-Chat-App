@@ -1,3 +1,11 @@
+/**
+ * @function getDefaultAvatar
+ * @description Generates a URL for a default avatar image using the UI Avatars API.
+ * The avatar will display the first letter(s) of the provided username on a random background.
+ *
+ * @param {string} username - The username to generate an avatar for. The first character(s) will be used.
+ * @returns {string} The URL string for the generated default avatar image.
+ */
 export const getDefaultAvatar = (username: string): string =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=random&color=fff&size=128`;
 

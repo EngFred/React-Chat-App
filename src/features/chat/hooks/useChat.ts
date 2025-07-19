@@ -5,8 +5,8 @@ import type { Conversation } from '../types/conversation';
 import type { Message } from '../types/message';
 import {
   createOrGetConversation,
-  sendMessage as sendChatTextMessage, // Renamed to avoid conflict
-  sendMediaMessage as sendChatMediaMessage, // New import
+  sendMessage as sendChatTextMessage,
+  sendMediaMessage as sendChatMediaMessage,
   listenForUsers,
   listenForConversations,
   listenForMessages,
@@ -14,27 +14,28 @@ import {
 } from '../service/ChatService';
 import { useAuthStore } from '../../../shared/store/authStore';
 
+/**
+ * Custom React hook for managing chat functionality.
+ * It handles fetching and updating users, conversations, and messages in real-time,
+ * as well as sending messages and managing chat states.
+ */
 export const useChat = () => {
   const { currentUser } = useAuthStore();
   const currentUserId = useMemo(() => currentUser?.id || null, [currentUser?.id]);
 
-  // Global chat data states
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
 
-  // Loading states
-  const [isLoadingInitialData, setIsLoadingInitialData] = useState(true); // For initial users & conversations
-  const [isLoadingMessages, setIsLoadingMessages] = useState(false); // For specific chat window messages
-  const [isSendingMessage, setIsSendingMessage] = useState(false); // New state for send button loading
+  const [isLoadingInitialData, setIsLoadingInitialData] = useState(true);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
-  // Refs for unsubscribe functions
   const unsubscribeUsersRef = useRef<(() => void) | null>(null);
   const unsubscribeConversationsRef = useRef<(() => void) | null>(null);
   const unsubscribeMessagesRef = useRef<(() => void) | null>(null);
 
-  // Helper to find the other user in the selected conversation
   const selectedOtherUser = useMemo(() => {
     if (!selectedConversation || !currentUserId) return null;
     const otherUserId = selectedConversation.participants.find(pId => pId !== currentUserId);
@@ -42,15 +43,16 @@ export const useChat = () => {
   }, [selectedConversation, allUsers, currentUserId]);
 
   /**
-   * Effect to manage global listeners (users and conversations).
-   * This runs once when currentUserId becomes available and cleans up on logout.
+   * Effect hook to set up real-time listeners for all users and conversations
+   * when the current user's ID is available. It also handles cleanup of these listeners.
+   * If currentUser.id changes or becomes null, it resets all chat-related states.
    */
   useEffect(() => {
     if (!currentUserId) {
-      // Clean up all listeners and reset state on logout
+      // Clear all subscriptions and reset state if no user is logged in
       unsubscribeUsersRef.current?.();
       unsubscribeConversationsRef.current?.();
-      unsubscribeMessagesRef.current?.(); // Also clear message listener
+      unsubscribeMessagesRef.current?.();
       unsubscribeUsersRef.current = null;
       unsubscribeConversationsRef.current = null;
       unsubscribeMessagesRef.current = null;
@@ -65,13 +67,12 @@ export const useChat = () => {
     }
 
     // --- Listen for All Users ---
-    setIsLoadingInitialData(true); // Set true while listeners are being established
+    setIsLoadingInitialData(true); // Indicate that we are loading data
     unsubscribeUsersRef.current = listenForUsers((updatedUsers, initialLoadComplete) => {
       setAllUsers(updatedUsers);
       if (initialLoadComplete) {
         console.log("[useChat] Initial users data loaded.");
       }
-      // setIsLoadingInitialData will be set to false once conversations are also loaded
     }, currentUserId);
 
     // --- Listen for Conversations ---
@@ -80,8 +81,8 @@ export const useChat = () => {
       if (initialLoadComplete) {
         console.log("[useChat] Initial conversations data loaded.");
       }
-      // If both initial loads are complete, set overall initial loading to false
-      if (initialLoadComplete && unsubscribeUsersRef.current) { // Assuming users listener also reports initial load
+      // If both users and conversations initial loads are complete, set overall loading to false
+      if (initialLoadComplete && unsubscribeUsersRef.current) { // Check if users listener was active
         setIsLoadingInitialData(false);
         console.log("[useChat] All initial chat data (users & conversations) loaded.");
       }
@@ -90,11 +91,12 @@ export const useChat = () => {
       setSelectedConversation(prevSelected => {
         if (!prevSelected) return null;
         const latestConv = updatedConversations.find(conv => conv.id === prevSelected.id);
-        return latestConv || prevSelected; // Return latest or keep previous if not found (e.g., deleted)
+        // If the selected conversation is found in the latest updates, use that; otherwise, stick to prev
+        return latestConv || prevSelected;
       });
     });
 
-    // Cleanup for this effect
+    // Cleanup function for this effect
     return () => {
       console.log("[useChat] Cleaning up global chat listeners.");
       unsubscribeUsersRef.current?.();
@@ -105,14 +107,15 @@ export const useChat = () => {
   }, [currentUserId]); // Rerun only if currentUser.id changes
 
   /**
-   * Effect to manage the messages listener for the currently selected conversation.
-   * This runs when selectedConversation.id changes.
+   * Effect hook to set up a real-time listener for messages within the currently selected conversation.
+   * This listener is re-initialized whenever the `selectedConversation.id` changes.
+   * It also handles cleanup of the message listener.
    */
   useEffect(() => {
-    // Clean up previous message listener if active
+    // Clean up previous message listener and reset messages
     unsubscribeMessagesRef.current?.();
     unsubscribeMessagesRef.current = null;
-    setMessages([]); // Clear messages when conversation changes or unselected
+    setMessages([]);
 
     if (!selectedConversation?.id || !currentUserId) {
       setIsLoadingMessages(false);
@@ -120,7 +123,7 @@ export const useChat = () => {
     }
 
     console.log(`[useChat] Setting up message listener for conversation: ${selectedConversation.id}`);
-    setIsLoadingMessages(true); // Start loading messages for new conversation
+    setIsLoadingMessages(true); // Indicate that messages for the new conversation are loading
 
     unsubscribeMessagesRef.current = listenForMessages(
       selectedConversation.id,
@@ -128,24 +131,25 @@ export const useChat = () => {
       (updatedMessages, initialLoadComplete) => {
         setMessages(updatedMessages);
         if (initialLoadComplete) {
-          setIsLoadingMessages(false); // Messages for this conversation are loaded
+          setIsLoadingMessages(false); // Messages are loaded after initial snapshot
           console.log(`[useChat] Initial messages for conversation ${selectedConversation.id} loaded.`);
         }
       }
     );
 
-    // Cleanup for this effect
+    // Cleanup function for this effect
     return () => {
       console.log(`[useChat] Cleaning up message listener for conversation: ${selectedConversation?.id}`);
       unsubscribeMessagesRef.current?.();
       unsubscribeMessagesRef.current = null;
     };
-  }, [selectedConversation?.id, currentUserId]);
-
+  }, [selectedConversation?.id, currentUserId]); // Re-run when selected conversation or current user changes
 
   /**
-   * Handles selecting a user to start/continue a chat.
-   * Creates or gets a conversation, then sets it as selected.
+   * Callback function to select a user to chat with.
+   * It attempts to create or retrieve a private conversation with the selected user
+   * and sets it as the `selectedConversation` in the state.
+   * @param user The User object to start a chat with.
    */
   const selectUserForChat = useCallback(async (user: User) => {
     if (!currentUserId) {
@@ -153,29 +157,30 @@ export const useChat = () => {
       return;
     }
     console.log(`[useChat] Selecting user for chat: ${user.username}`);
-    setIsLoadingMessages(true); // Start loading indicator for chat window
+    setIsLoadingMessages(true); // Start loading state for messages
 
     try {
       const conversation = await createOrGetConversation(currentUserId, user.id);
       setSelectedConversation(conversation);
-      // Messages will load via the useEffect for selectedConversation.id
     } catch (error: any) {
       console.error('[useChat] Error selecting user for chat:', error);
       toast.error(`Failed to start chat: ${error.message || 'Unknown error'}`);
-      setIsLoadingMessages(false); // Turn off loading on error
+      setIsLoadingMessages(false); // End loading state on error
     }
   }, [currentUserId]);
 
   /**
-   * Sends a text message in the currently selected conversation.
-   * Implements optimistic UI update.
+   * Callback function to send a text message in the currently selected conversation.
+   * Implements an optimistic UI update by adding a temporary message immediately,
+   * then updates it with the actual message upon successful delivery or removes it on failure.
+   * @param content The text content of the message.
    */
   const sendTextMessage = useCallback(async (content: string): Promise<void> => {
     if (!selectedConversation || !currentUserId || !selectedOtherUser) {
       toast.error('No active chat to send message.');
       return;
     }
-    setIsSendingMessage(true); // Start sending loading state
+    setIsSendingMessage(true);
 
     // Optimistic update: Add a temporary message to the UI
     const tempMessage: Message = {
@@ -185,10 +190,10 @@ export const useChat = () => {
       receiver_id: selectedOtherUser.id,
       content,
       type: 'text',
-      timestamp: new Date().toISOString(), // Use client-side timestamp for display
+      timestamp: new Date().toISOString(),
       created_at: new Date().toISOString(),
       read_by: [currentUserId],
-      status: 'sending' // Custom status for optimistic UI
+      status: 'sending' // Custom status for optimistic updates
     };
 
     setMessages(prevMessages => [...prevMessages, tempMessage].sort((a, b) => {
@@ -198,7 +203,6 @@ export const useChat = () => {
     }));
 
     try {
-      // Call service to send message to Firestore
       const sentMsg = await sendChatTextMessage(
         selectedConversation.id,
         currentUserId,
@@ -206,11 +210,10 @@ export const useChat = () => {
         content
       );
 
-      // The message listener will eventually pick up the sent message and update the state
-      // For immediate optimistic update correction, if listener is slow, we can do this:
+      // Update the temporary message with the actual sent message data
       setMessages(prevMessages => prevMessages.map(msg =>
         msg.id === tempMessage.id ? { ...sentMsg, status: undefined } : msg
-      ).sort((a, b) => {
+      ).sort((a, b) => { // Re-sort to ensure correct order after update
         const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
         const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
         return timeA - timeB;
@@ -219,40 +222,40 @@ export const useChat = () => {
     } catch (error: any) {
       console.error('[useChat] Error sending text message:', error);
       toast.error(`Failed to send message: ${error.message || 'Unknown error'}`);
-      // Revert optimistic update on error
+      // Remove the temporary message on failure
       setMessages(prevMessages => prevMessages.filter(msg => msg.id !== tempMessage.id));
     } finally {
-      setIsSendingMessage(false); // End sending loading state
+      setIsSendingMessage(false);
     }
   }, [selectedConversation, currentUserId, selectedOtherUser]);
 
   /**
-   * Sends a media message (image, video, audio) in the currently selected conversation.
-   * Implements optimistic UI update.
+   * Callback function to send a media message (image, video, or audio) in the current chat.
+   * Implements optimistic UI update, similar to `sendTextMessage`, for media content.
+   * @param file The media file to be sent.
+   * @param type The type of media ('image', 'video', or 'audio').
    */
   const sendMediaMessage = useCallback(async (file: File, type: 'image' | 'video' | 'audio'): Promise<void> => {
     if (!selectedConversation || !currentUserId || !selectedOtherUser) {
       toast.error('No active chat to send media.');
       return;
     }
-    setIsSendingMessage(true); // Start sending loading state
+    setIsSendingMessage(true);
 
-    // Optimistic update: Add a temporary media message to the UI
     const tempMessage: Message = {
       id: `temp-${Date.now()}-${Math.random()}`,
       conversation_id: selectedConversation.id,
       sender_id: currentUserId,
       receiver_id: selectedOtherUser.id,
-      content: `[${type.charAt(0).toUpperCase() + type.slice(1)}]`, // E.g., "[Image]"
+      content: `[${type.charAt(0).toUpperCase() + type.slice(1)}]`, // Placeholder content
       type: type,
       timestamp: new Date().toISOString(),
       created_at: new Date().toISOString(),
       read_by: [currentUserId],
       status: 'sending',
       media_type: type,
-      // For optimistic UI, you might want to create a local URL or thumbnail for preview
-      media_url: type === 'image' || type === 'video' ? URL.createObjectURL(file) : null,
-      thumbnail_url: null, // No client-side thumbnail for now
+      media_url: type === 'image' || type === 'video' ? URL.createObjectURL(file) : null, // Create temp URL for preview
+      thumbnail_url: null,
       dimensions: null,
       duration: null,
     };
@@ -289,9 +292,10 @@ export const useChat = () => {
     }
   }, [selectedConversation, currentUserId, selectedOtherUser]);
 
-
   /**
-   * Updates the typing status for the current user in the selected conversation.
+   * Callback function to update the user's typing status in the database.
+   * It debounces the 'isTyping: true' update to avoid excessive writes.
+   * @param isTyping A boolean indicating if the user is currently typing.
    */
   const handleSetTypingStatus = useCallback(async (isTyping: boolean) => {
     if (!selectedConversation?.id || !currentUserId) return;
@@ -302,8 +306,11 @@ export const useChat = () => {
     }
   }, [selectedConversation?.id, currentUserId]);
 
+
   /**
-   * Resets the chat window, clearing messages and unselecting the conversation.
+   * Callback function to reset the chat window state.
+   * This typically means deselecting the current conversation and clearing messages.
+   * It also attempts to clear the user's typing status if a conversation was active.
    */
   const resetChatWindow = useCallback(() => {
     console.log("[useChat] Resetting chat window.");
@@ -324,13 +331,13 @@ export const useChat = () => {
     messages,
     selectedConversation,
     selectedOtherUser,
-    isLoadingInitialData, // Overall loading for users and conversations list
-    isLoadingMessages, // Loading specific to the selected chat window
-    isSendingMessage, // Export new sending state
+    isLoadingInitialData,
+    isLoadingMessages,
+    isSendingMessage,
     selectUserForChat,
-    sendMessage: sendTextMessage, // Export text sending as sendMessage
-    sendMediaMessage, // Export media sending
+    sendMessage: sendTextMessage, // Renamed for clarity in return
+    sendMediaMessage,
     resetChatWindow,
-    setTypingStatus: handleSetTypingStatus,
+    setTypingStatus: handleSetTypingStatus, // Renamed for clarity in return
   };
 };

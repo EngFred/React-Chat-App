@@ -8,24 +8,42 @@ import { useAuthStore } from './shared/store/authStore';
 import AppRouter from './router';
 import LoadingSpinner from './shared/components/LoadingSpinner';
 
+/**
+ * App component serves as the root of the application.
+ * It sets up global configurations like routing, theme management,
+ * authentication state listening, and online/offline status handling.
+ */
 const App: React.FC = () => {
   const { currentTheme } = useThemeStore();
   const { loadingAuth, currentUser, initializeAuthListener, setOnlineStatus } = useAuthStore();
 
   const currentUserIdRef = useRef(currentUser?.id);
-
   const authListenerInitializedRef = useRef(false);
 
+  /**
+   * Updates `currentUserIdRef` whenever the `currentUser.id` changes.
+   * This ensures the ref always holds the most recent user ID for event listeners.
+   */
   useEffect(() => {
     currentUserIdRef.current = currentUser?.id;
   }, [currentUser?.id]);
 
+  /**
+   * Initializes the authentication listener and manages user online/offline status.
+   * This effect runs once on component mount to set up the auth listener.
+   * It also attaches event listeners for tab visibility changes and `beforeunload`
+   * to update the user's online presence accurately.
+   */
   useEffect(() => {
     if (!authListenerInitializedRef.current) {
       initializeAuthListener();
       authListenerInitializedRef.current = true;
     }
 
+    /**
+     * Handles changes in document visibility.
+     * Sets user online if tab is visible, offline if hidden.
+     */
     const handleVisibilityChange = () => {
       if (currentUserIdRef.current) {
         if (document.visibilityState === 'visible') {
@@ -38,10 +56,13 @@ const App: React.FC = () => {
       }
     };
 
+    /**
+     * Handles the 'beforeunload' event.
+     * Sets user offline right before the page is closed or reloaded.
+     */
     const handleBeforeUnload = () => {
       if (currentUserIdRef.current) {
         console.log('[App] Before unload, setting user offline.');
-        // Call directly without the debouncing timeout from the store's setOnlineStatus
         useAuthStore.getState().setOnlineStatus(false);
       }
     };
@@ -56,10 +77,18 @@ const App: React.FC = () => {
     };
   }, [initializeAuthListener, setOnlineStatus]);
 
+  /**
+   * Applies the current theme to the document's root element (`<html>`).
+   * This allows global CSS variables or classes to change based on the selected theme,
+   * enabling dynamic theming across the entire application.
+   */
   useEffect(() => {
     document.documentElement.className = `theme-${currentTheme}`;
   }, [currentTheme]);
 
+  /**
+   * Determines the appropriate theme for ToastContainer based on the current app theme.
+   */
   const toastTheme = useMemo((): 'light' | 'dark' | 'colored' => {
     switch (currentTheme) {
       case 'crystal-light':
@@ -74,19 +103,18 @@ const App: React.FC = () => {
     }
   }, [currentTheme]);
 
-  // Only show the full-page spinner if `loadingAuth` is true.
   if (loadingAuth) {
     console.log('[App] App is loading auth state, showing full-page spinner.');
     return (
       <motion.div
-        className="fixed inset-0 flex flex-col items-center justify-center bg-background text-text-secondary z-[9999]" // Added flex, items-center, justify-center, and fixed/inset-0
+        className="fixed inset-0 flex flex-col items-center justify-center bg-background text-text-secondary z-[9999]"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <LoadingSpinner size={24} thickness={4} color="text-primary" /> {/* Example props */}
-        <p className="mt-4 text-lg font-medium">Initializing application...</p>
+        <LoadingSpinner size={24} thickness={4} color="text-primary" />
+        <p className="mt-4 text-lg font-medium">Just a moment...</p>
       </motion.div>
     );
   }
@@ -100,7 +128,7 @@ const App: React.FC = () => {
       transition={{ duration: 0.5 }}
     >
       <Router>
-        <Suspense fallback={<LoadingSpinner size={16} thickness={3} color="text-primary" />}> {/* Spinner for Suspense */}
+        <Suspense fallback={<LoadingSpinner size={16} thickness={3} color="text-primary" />}>
           <AppRouter />
         </Suspense>
       </Router>

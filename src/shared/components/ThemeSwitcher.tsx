@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import type { Theme } from '../types/theme'; // Assuming Theme type is defined in '../types/theme'
-import { useThemeStore } from '../store/themeStore'; // Global state management for theme
+import type { Theme } from '../types/theme';
+import { useThemeStore } from '../store/themeStore';
 
 /**
  * Renders a theme switcher that allows users to select from various themes.
@@ -10,7 +10,6 @@ import { useThemeStore } from '../store/themeStore'; // Global state management 
  * @returns {JSX.Element} The rendered theme switcher component.
  */
 const ThemeSwitcher: React.FC = () => {
-  // Destructure currentTheme and setTheme function from the theme store
   const { currentTheme, setTheme } = useThemeStore();
 
   // Define the available themes
@@ -29,7 +28,7 @@ const ThemeSwitcher: React.FC = () => {
         {themes.map((theme) => (
           <motion.button
             key={theme}
-            type="button" // IMPORTANT: Explicitly set type to "button" to prevent form submission
+            type="button"
             onClick={() => setTheme(theme)}
             aria-label={`Activate ${theme} theme`}
             className={`p-1 rounded-full border-2 ${

@@ -11,6 +11,10 @@ import InputField from '../../../shared/components/InputField';
 import PasswordInput from '../components/PasswordInput';
 import ThemeSwitcher from '../../../shared/components/ThemeSwitcher';
 
+/**
+ * Defines the validation schema for the login form using Zod.
+ * Ensures email is a valid format and password is at least 6 characters long.
+ */
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
@@ -18,25 +22,31 @@ const loginSchema = z.object({
 
 type LoginFormInputs = z.infer<typeof loginSchema>;
 
+/**
+ * LoginPage component provides the user interface for logging into the application.
+ * It uses react-hook-form for form management and Zod for validation.
+ * Upon successful login, it navigates the user to the chat page.
+ */
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  // Access login function and isSubmitting state from the custom useAuth hook
   const { login, isSubmitting: isAuthSubmitting } = useAuth();
-  // Access currentUser from the global authentication store for redirection logic
   const { currentUser } = useAuthStore();
 
-  // Initialize react-hook-form with Zod resolver for validation
   const {
-    register, // Function to register form inputs
-    handleSubmit, // Function to wrap the onSubmit handler
-    formState: { errors }, // Object containing validation errors
+    register,
+    handleSubmit,
+    formState: { errors },
   } = useForm<LoginFormInputs>({
-    resolver: zodResolver(loginSchema), // Integrate Zod for schema-based validation
-    mode: 'onSubmit', // Validate on form submission
-    reValidateMode: 'onSubmit', // Re-validate on form submission
-    shouldUnregister: false, // Keep field values in state even if unmounted
+    resolver: zodResolver(loginSchema),
+    mode: 'onSubmit',
+    reValidateMode: 'onSubmit',
+    shouldUnregister: false,
   });
 
+  /**
+   * Redirects the user to the chat page if they are already authenticated.
+   * This prevents logged-in users from accessing the login page.
+   */
   useEffect(() => {
     if (currentUser) {
       console.log('[LoginPage] currentUser detected, navigating to /chat.');
@@ -44,6 +54,12 @@ const LoginPage: React.FC = () => {
     }
   }, [currentUser, navigate]);
 
+  /**
+   * Handles the form submission for user login.
+   * Calls the `login` function from the `useAuth` hook. Error handling and toasts
+   * are managed within the `useAuth` hook.
+   * @param data The form data containing email and password.
+   */
   const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
     console.log('[LoginPage] onSubmit: Login attempt started.');
     try {
@@ -78,10 +94,9 @@ const LoginPage: React.FC = () => {
         label="Password"
         placeholder="••••••••"
         register={register}
-        name="password" 
+        name="password"
         error={errors.password}
       />
-      {/* ThemeSwitcher is placed here, ensuring its buttons do not trigger form submission */}
       <div className="mt-6 text-center">
         <ThemeSwitcher />
       </div>

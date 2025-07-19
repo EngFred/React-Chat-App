@@ -9,7 +9,6 @@ import ThemeSwitcher from '../../../shared/components/ThemeSwitcher';
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
 
-  // Define motion props based on screen size
   const isMobile = window.innerWidth < 768;
   const containerMotionProps = isMobile
     ? {} // No animations on mobile

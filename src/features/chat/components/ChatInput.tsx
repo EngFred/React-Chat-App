@@ -6,6 +6,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import { getMediaTypeFromFile } from '../utils/chatHelpers';
 
+/**
+ * Defines the properties for the ChatInput component.
+ */
 interface ChatInputProps {
   onSendMessage: (text: string) => Promise<void>;
   onSendMediaMessage: (file: File, type: 'image' | 'video' | 'audio') => Promise<void>;
@@ -14,6 +17,11 @@ interface ChatInputProps {
   isSendingMessage: boolean;
 }
 
+/**
+ * ChatInput component provides the interface for composing and sending messages
+ * (text and media). It includes features like emoji picker, media attachment options,
+ * typing status notification, and handles file previews.
+ */
 const ChatInput: React.FC<ChatInputProps> = ({
   onSendMessage,
   onSendMediaMessage,
@@ -39,10 +47,16 @@ const ChatInput: React.FC<ChatInputProps> = ({
   const [emojiPickerOffset, setEmojiPickerOffset] = useState<{ bottom: number; left: number } | null>(null);
   const [mediaPickerOffset, setMediaPickerOffset] = useState<{ bottom: number; left: number } | null>(null);
 
+  // Ref to track typing status for debouncing purposes
   const isTypingRef = useRef(false);
 
+  /**
+   * Effect hook to handle clicks outside of the emoji or media picker
+   * to close them.
+   */
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Close emoji picker if click is outside of picker and its trigger button
       if (
         showEmojiPicker &&
         emojiPickerRef.current &&
@@ -52,6 +66,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
       ) {
         setShowEmojiPicker(false);
       }
+      // Close media picker if click is outside of picker and its trigger button
       if (
         showMediaPicker &&
         mediaPickerRef.current &&
@@ -66,6 +81,10 @@ const ChatInput: React.FC<ChatInputProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showEmojiPicker, showMediaPicker]);
 
+  /**
+   * Callback to calculate the positioning of the emoji and media pickers
+   * relative to their trigger buttons, ensuring they appear above the input.
+   */
   const calculatePickerPositions = useCallback(() => {
     if (!chatInputContainerRef.current) return;
 
@@ -74,41 +93,53 @@ const ChatInput: React.FC<ChatInputProps> = ({
     if (emojiButtonRef.current) {
       const buttonRect = emojiButtonRef.current.getBoundingClientRect();
       setEmojiPickerOffset({
-        bottom: containerRect.height + 10,
-        left: buttonRect.left - containerRect.left,
+        bottom: containerRect.height + 10, // Position above the input container
+        left: buttonRect.left - containerRect.left, // Align with the button
       });
     }
 
     if (attachmentButtonRef.current) {
       const buttonRect = attachmentButtonRef.current.getBoundingClientRect();
       setMediaPickerOffset({
-        bottom: containerRect.height + 10,
-        left: buttonRect.left - containerRect.left,
+        bottom: containerRect.height + 10, // Position above the input container
+        left: buttonRect.left - containerRect.left, // Align with the button
       });
     }
   }, []);
 
+  /**
+   * Effect hook to recalculate picker positions on mount and window resize
+   * to ensure correct placement.
+   */
   useEffect(() => {
     calculatePickerPositions();
     const handleResize = () => calculatePickerPositions();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [calculatePickerPositions, showEmojiPicker, showMediaPicker]);
+  }, [calculatePickerPositions, showEmojiPicker, showMediaPicker]); // Recalculate if picker visibility changes
 
+  /**
+   * Effect hook to manage and debounce the typing status updates.
+   * Sends a 'typing' status when message content changes and clears it after a delay
+   * or when the message is sent/media is selected.
+   */
   useEffect(() => {
-    if (!conversationId) return;
+    if (!conversationId) return; // Only update if a conversation is active
 
     if (!selectedMediaFile && message.trim().length > 0) {
+      // If typing and not already marked as typing
       if (!isTypingRef.current) {
         onSetTypingStatus(true);
         isTypingRef.current = true;
       }
+      // Set a timeout to mark as not typing after a brief pause
       const timeoutId = setTimeout(() => {
         onSetTypingStatus(false);
         isTypingRef.current = false;
-      }, 1500);
-      return () => clearTimeout(timeoutId);
+      }, 1500); // 1.5 seconds after last key press
+      return () => clearTimeout(timeoutId); // Clear timeout if message changes quickly
     } else {
+      // If message is empty or media is selected, ensure typing status is off
       if (isTypingRef.current) {
         onSetTypingStatus(false);
         isTypingRef.current = false;
@@ -116,10 +147,15 @@ const ChatInput: React.FC<ChatInputProps> = ({
     }
   }, [message, conversationId, onSetTypingStatus, selectedMediaFile]);
 
+  /**
+   * Handles sending either a text message or a media message based on the
+   * current state of `message` and `selectedMediaFile`.
+   */
   const handleSend = async (): Promise<void> => {
-    if (isSendingMessage) return;
+    if (isSendingMessage) return; // Prevent double submission
 
     if (selectedMediaFile) {
+      // Send media message
       const mediaType = getMediaTypeFromFile(selectedMediaFile);
       if (!mediaType) {
         toast.error('Unsupported file type selected.');
@@ -131,6 +167,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
         console.error('[ChatInput] Error sending media message:', error);
         toast.error(`Failed to send media: ${error.message || 'Unknown error'}`);
       } finally {
+        // Reset media input states after sending or error
         setSelectedMediaFile(null);
         setMediaPreviewUrl(null);
         if (imageInputRef.current) imageInputRef.current.value = '';
@@ -138,11 +175,12 @@ const ChatInput: React.FC<ChatInputProps> = ({
         if (audioInputRef.current) audioInputRef.current.value = '';
       }
     } else if (message.trim()) {
+      // Send text message
       try {
         await onSendMessage(message.trim());
-        setMessage('');
-        setShowEmojiPicker(false);
-        onSetTypingStatus(false);
+        setMessage(''); // Clear input field
+        setShowEmojiPicker(false); // Close emoji picker
+        onSetTypingStatus(false); // Ensure typing status is cleared
         isTypingRef.current = false;
       } catch (error: any) {
         console.error('[ChatInput] Error sending text message:', error);
@@ -151,65 +189,79 @@ const ChatInput: React.FC<ChatInputProps> = ({
     }
   };
 
+  /**
+   * Handles keyboard input, specifically for sending messages on Enter key press
+   * (unless Shift + Enter is used for a new line).
+   */
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
+      e.preventDefault(); // Prevent new line on Enter
       handleSend();
     }
   }, [handleSend]);
 
+  /**
+   * Callback for when an emoji is clicked from the emoji picker.
+   * Appends the selected emoji to the current message.
+   */
   const onEmojiClick = useCallback((emojiData: EmojiClickData): void => {
     setMessage((prevMsg) => prevMsg + emojiData.emoji);
   }, []);
 
+  /**
+   * Toggles the visibility of the media attachment picker and hides the emoji picker.
+   */
   const handleAttachmentClick = useCallback((): void => {
     setShowMediaPicker((prev) => !prev);
     setShowEmojiPicker(false);
   }, []);
 
+  /**
+   * Handles file selection from input elements.
+   * Validates file type, sets selected media file, and generates a preview URL if applicable.
+   */
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>): void => {
-    setShowMediaPicker(false);
+    setShowMediaPicker(false); // Close media picker after selection
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const mediaType = getMediaTypeFromFile(file);
 
       if (!mediaType) {
         toast.error('Unsupported file type. Please select an image, video, or audio file.');
-        e.target.value = '';
+        e.target.value = ''; // Clear file input
         return;
       }
 
       setSelectedMediaFile(file);
+      // Create object URL for immediate preview of image/video
       if (mediaType === 'image' || mediaType === 'video') {
         setMediaPreviewUrl(URL.createObjectURL(file));
       } else {
-        setMediaPreviewUrl(null);
+        setMediaPreviewUrl(null); // No direct preview for audio files, just name
       }
-      setMessage('');
-      setShowEmojiPicker(false);
+      setMessage(''); // Clear text message when media is selected
+      setShowEmojiPicker(false); // Close emoji picker
     }
   }, []);
 
+  /**
+   * Clears the currently selected media file and its preview.
+   */
   const clearSelectedMedia = useCallback(() => {
     setSelectedMediaFile(null);
     setMediaPreviewUrl(null);
+    // Clear file input values to allow re-selecting the same file
     if (imageInputRef.current) imageInputRef.current.value = '';
     if (videoInputRef.current) videoInputRef.current.value = '';
     if (audioInputRef.current) audioInputRef.current.value = '';
   }, []);
 
-  const triggerImageInput = useCallback(() => {
-    imageInputRef.current?.click();
-  }, []);
+  // Callbacks to trigger hidden file input clicks
+  const triggerImageInput = useCallback(() => { imageInputRef.current?.click(); }, []);
+  const triggerVideoInput = useCallback(() => { videoInputRef.current?.click(); }, []);
+  const triggerAudioInput = useCallback(() => { audioInputRef.current?.click(); }, []);
 
-  const triggerVideoInput = useCallback(() => {
-    videoInputRef.current?.click();
-  }, []);
-
-  const triggerAudioInput = useCallback(() => {
-    audioInputRef.current?.click();
-  }, []);
-
+  // Disable send button if message is empty and no media is selected, or if already sending
   const isSendButtonDisabled = isSendingMessage || (!message.trim() && !selectedMediaFile);
 
   return (
@@ -257,7 +309,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
           ref={emojiButtonRef}
           onClick={() => {
             setShowEmojiPicker((prev) => !prev);
-            setShowMediaPicker(false);
+            setShowMediaPicker(false); // Close media picker if emoji is opened
           }}
           className="p-2 rounded-full hover:bg-background text-text-secondary transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary"
           title="Open emoji picker"
@@ -316,6 +368,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
           )}
         </AnimatePresence>
 
+        {/* Hidden file input elements */}
         <input
           type="file"
           ref={imageInputRef}
@@ -343,12 +396,12 @@ const ChatInput: React.FC<ChatInputProps> = ({
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={selectedMediaFile ? selectedMediaFile.name : "Type a message..."}
-          rows={1}
+          rows={1} // Start with one row
           className="flex-1 mx-2 p-2 rounded-xl bg-transparent text-text-primary resize-none outline-none focus:ring-2 focus:ring-primary text-base placeholder-text-secondary"
-          style={{ maxHeight: '100px', overflowY: 'auto' }}
+          style={{ maxHeight: '100px', overflowY: 'auto' }} // Max height for auto-expanding textarea
           whileFocus={{ scale: 1.005 }}
           transition={{ duration: 0.1 }}
-          disabled={isSendingMessage || !!selectedMediaFile}
+          disabled={isSendingMessage || !!selectedMediaFile} // Disable if sending or media is selected
         />
 
         <motion.button

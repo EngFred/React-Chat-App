@@ -11,41 +11,60 @@ import { capitalizeFirstLetter } from '../utils/chatHelpers';
 
 dayjs.extend(localizedFormat);
 
+/**
+ * Defines the properties for the MessageBubble component.
+ */
 interface MessageBubbleProps {
   message: Message;
   isOwnMessage: boolean;
   sender: User;
-  showOwnProfilePicture?: boolean;
+  showOwnProfilePicture?: boolean; // Controls visibility of sender's profile picture for own messages
 }
 
+/**
+ * MessageBubble component displays a single chat message, handling different message types
+ * (text, image, video, audio) with appropriate rendering and controls.
+ * It also shows sender's profile picture, message status (sent/read), and timestamp.
+ */
 const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, sender, showOwnProfilePicture = true }) => {
+  // State for video controls
   const [showVideoControls, setShowVideoControls] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoDuration, setVideoDuration] = useState<string | null>(null);
   const [videoPlaybackSpeed, setVideoPlaybackSpeed] = useState<number>(1);
   const [videoProgress, setVideoProgress] = useState(0);
   const [videoCurrentTime, setVideoCurrentTime] = useState<string>('0:00');
+
+  // State for audio controls
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
   const [audioCurrentTime, setAudioCurrentTime] = useState<string>('0:00');
   const [audioTotalDuration, setAudioTotalDuration] = useState<string | null>(null);
   const [audioPlaybackSpeed, setAudioPlaybackSpeed] = useState<number>(1);
-  const [waveformData, setWaveformData] = useState<number[]>([]);
+  const [waveformData, setWaveformData] = useState<number[]>([]); // Mock waveform data
 
+  /**
+   * Effect hook to reset media player states when the message changes.
+   * This ensures that controls and playback reset when a new message is rendered.
+   */
   useEffect(() => {
+    // Reset video states
     setShowVideoControls(false);
     setVideoDuration(null);
     setVideoPlaybackSpeed(1);
     setVideoProgress(0);
     setVideoCurrentTime('0:00');
+
+    // Reset audio states
     setIsPlayingAudio(false);
     setAudioProgress(0);
     setAudioCurrentTime('0:00');
     setAudioTotalDuration(null);
     setAudioPlaybackSpeed(1);
-    setWaveformData([]);
+    setWaveformData([]); // Clear waveform data
 
+    // Pause and reset actual media elements
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
@@ -56,29 +75,49 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
       audioRef.current.currentTime = 0;
       audioRef.current.playbackRate = 1;
     }
-  }, [message]);
+  }, [message]); // Dependency on message ensures reset for new messages
 
+  /**
+   * Formats a given number of seconds into a human-readable time string (MM:SS).
+   * @param seconds The total number of seconds.
+   * @returns Formatted time string.
+   */
   const formatTime = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
+  /**
+   * Parses the text content of a message to apply basic markdown-like formatting
+   * (bold, italic, strikethrough) using HTML tags.
+   * @param content The raw string content of the message.
+   * @returns A React span element with dangerouslySetInnerHTML, containing formatted HTML.
+   */
   const parseTextContent = (content: string) => {
     let formatted = content
-      .replace(/\*(.*?)\*/g, '<strong>$1</strong>')
-      .replace(/_(.*?)_/g, '<em>$1</em>')
-      .replace(/~(.*?)~/g, '<s>$1</s>');
+      .replace(/\*(.*?)\*/g, '<strong>$1</strong>') // Bold
+      .replace(/_(.*?)_/g, '<em>$1</em>')          // Italic
+      .replace(/~(.*?)~/g, '<s>$1</s>');         // Strikethrough
     return <span dangerouslySetInnerHTML={{ __html: formatted }} />;
   };
 
+  /**
+   * Effect hook to generate mock waveform data for audio messages.
+   * This runs once when the message type is 'audio'.
+   */
   useEffect(() => {
     if (message.type === 'audio') {
       const mockWaveform = Array.from({ length: 50 }, () => Math.random() * 10 + 5);
       setWaveformData(mockWaveform);
     }
-  }, [message.type]);
+  }, [message.type]); // Only re-run if message type changes
 
+  /**
+   * Effect hook to attach event listeners for video and audio playback
+   * (loadedmetadata, timeupdate, ended) to update progress, duration, and controls.
+   * It also handles cleanup of these listeners.
+   */
   useEffect(() => {
     if (message.type === 'video' && videoRef.current) {
       const handleLoadedMetadata = () => {
@@ -95,7 +134,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
         }
       };
       const handleEnded = () => {
-        setShowVideoControls(false);
+        setShowVideoControls(false); // Hide controls after video ends
         setVideoProgress(0);
         setVideoCurrentTime('0:00');
       };
@@ -103,6 +142,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
       videoRef.current.addEventListener('timeupdate', handleTimeUpdate);
       videoRef.current.addEventListener('ended', handleEnded);
       return () => {
+        // Clean up listeners when component unmounts or dependencies change
         if (videoRef.current) {
           videoRef.current.removeEventListener('loadedmetadata', handleLoadedMetadata);
           videoRef.current.removeEventListener('timeupdate', handleTimeUpdate);
@@ -124,7 +164,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
         }
       };
       const handleEnded = () => {
-        setIsPlayingAudio(false);
+        setIsPlayingAudio(false); // Stop playing state
         setAudioProgress(0);
         setAudioCurrentTime('0:00');
       };
@@ -132,6 +172,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
       audioRef.current.addEventListener('timeupdate', handleTimeUpdate);
       audioRef.current.addEventListener('ended', handleEnded);
       return () => {
+        // Clean up listeners
         if (audioRef.current) {
           audioRef.current.removeEventListener('loadedmetadata', handleLoadedMetadata);
           audioRef.current.removeEventListener('timeupdate', handleTimeUpdate);
@@ -139,20 +180,27 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
         }
       };
     }
-  }, [message.type, message.media_url]);
+  }, [message.type, message.media_url]); // Re-run if message type or media URL changes
 
+  /**
+   * Callback to toggle video playback (play/pause) and show/hide video controls.
+   */
   const handleVideoPlay = useCallback(() => {
     if (videoRef.current) {
       if (videoRef.current.paused) {
         videoRef.current.play().catch(error => console.error("Error playing video:", error));
-        setShowVideoControls(true);
+        setShowVideoControls(true); // Show controls when playing
       } else {
         videoRef.current.pause();
-        setShowVideoControls(false);
+        setShowVideoControls(false); // Hide controls when paused
       }
     }
   }, []);
 
+  /**
+   * Callback to handle seeking in the video by clicking on the progress bar.
+   * @param e The mouse event from the progress bar click.
+   */
   const handleVideoSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (videoRef.current && videoRef.current.duration) {
       const progressBar = e.currentTarget;
@@ -163,6 +211,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
     }
   }, []);
 
+  /**
+   * Callback to toggle audio playback (play/pause).
+   */
   const handleAudioTogglePlay = useCallback(() => {
     if (audioRef.current) {
       if (isPlayingAudio) {
@@ -172,8 +223,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
       }
       setIsPlayingAudio(!isPlayingAudio);
     }
-  }, [isPlayingAudio]);
+  }, [isPlayingAudio]); // Depends on current playing state
 
+  /**
+   * Callback to handle seeking in the audio by clicking on the progress bar.
+   * @param e The mouse event from the progress bar click.
+   */
   const handleAudioSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (audioRef.current && audioRef.current.duration) {
       const progressBar = e.currentTarget;
@@ -184,6 +239,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
     }
   }, []);
 
+  /**
+   * Callback to cycle through audio playback speeds (1x, 1.5x, 2x).
+   */
   const handleAudioPlaybackSpeedChange = useCallback(() => {
     if (audioRef.current) {
       const speeds = [1, 1.5, 2];
@@ -192,8 +250,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
       audioRef.current.playbackRate = nextSpeed;
       setAudioPlaybackSpeed(nextSpeed);
     }
-  }, [audioPlaybackSpeed]);
+  }, [audioPlaybackSpeed]); // Depends on current playback speed
 
+  /**
+   * Callback to cycle through video playback speeds (1x, 1.5x, 2x).
+   */
   const handleVideoPlaybackSpeedChange = useCallback(() => {
     if (videoRef.current) {
       const speeds = [1, 1.5, 2];
@@ -202,15 +263,21 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
       videoRef.current.playbackRate = nextSpeed;
       setVideoPlaybackSpeed(nextSpeed);
     }
-  }, [videoPlaybackSpeed]);
+  }, [videoPlaybackSpeed]); // Depends on current playback speed
 
+  // Determine base CSS classes for the message bubble based on sender
   const baseBubbleClasses = isOwnMessage
     ? 'bg-message-bg-self ml-auto rounded-tl-xl rounded-tr-lg rounded-bl-xl rounded-br-xl shadow-sm relative before:content-[""] before:absolute before:bottom-0 before:right-[-8px] before:w-0 before:h-0 before:border-l-[8px] before:border-l-transparent before:border-b-[8px] before:border-b-message-bg-self before:border-r-[8px] before:border-r-message-bg-self'
     : 'bg-message-bg-other mr-auto rounded-tr-xl rounded-tl-lg rounded-br-xl rounded-bl-xl shadow-sm relative before:content-[""] before:absolute before:bottom-0 before:left-[-8px] before:w-0 before:h-0 before:border-r-[8px] before:border-r-transparent before:border-b-[8px] before:border-b-message-bg-other before:border-l-[8px] before:border-l-message-bg-other';
 
+  // Check if the message has been read by the receiver for own messages
   const isRead = isOwnMessage && message.read_by?.includes(message.receiver_id);
+  // Check if media message has a custom caption
   const isMediaWithCaption = (message.type !== 'text' && message.content && message.content !== `[${capitalizeFirstLetter(message.type)}]`);
 
+  /**
+   * Renders the timestamp and message status overlay, typically for media messages.
+   */
   const renderTimestampAndStatusOverlay = () => (
     <div className="absolute bottom-1 right-1 flex items-center text-[10px] gap-1 px-1.5 py-0.5 rounded-md bg-black bg-opacity-50 text-white">
       <span>{dayjs(message.timestamp).format('LT')}</span>
@@ -226,6 +293,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
     </div>
   );
 
+  /**
+   * Renders the timestamp and message status as a footer, typically for text messages.
+   */
   const renderTimestampAndStatusFooter = () => (
     <div className={`flex items-center justify-end text-[10px] mt-1.5 gap-1 px-4 pb-2 ${isOwnMessage ? 'text-text-secondary' : 'text-text-secondary'}`}>
       <span>{dayjs(message.timestamp).format('LT')}</span>
@@ -241,6 +311,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
     </div>
   );
 
+  /**
+   * Renders the content based on the message type (image, video, audio, text).
+   * Includes specific controls and UI for each media type.
+   */
   const renderMediaContent = () => {
     switch (message.type) {
       case 'image':
@@ -250,7 +324,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
               src={message.media_url}
               alt={message.content || 'Image message'}
               className="w-full h-auto object-contain cursor-pointer max-h-96"
-              onClick={() => window.open(message.media_url!, '_blank')}
+              onClick={() => window.open(message.media_url!, '_blank')} // Open image in new tab
             />
             {renderTimestampAndStatusOverlay()}
           </div>
@@ -267,7 +341,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
               ref={videoRef}
               src={message.media_url}
               className="w-full h-full object-contain"
-              preload="metadata"
+              preload="metadata" // Load metadata to get duration
               onEnded={() => setShowVideoControls(false)}
             />
             <AnimatePresence>
@@ -298,7 +372,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
                 </button>
               </div>
             )}
-            {videoDuration && !showVideoControls && (
+            {videoDuration && !showVideoControls && ( // Show duration only if controls are hidden
               <div className="absolute bottom-1 left-1 bg-black bg-opacity-50 text-white text-[10px] px-1.5 py-0.5 rounded-md">
                 {videoDuration}
               </div>
@@ -314,6 +388,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
       case 'audio':
         return message.media_url ? (
           <div className="relative flex items-center p-2 rounded-lg shadow-md w-full bg-background">
+            {/* Show sender's profile picture for incoming audio messages */}
             {!isOwnMessage && (
               <ProfilePicture
                 src={sender.profile_picture}
@@ -331,6 +406,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
               </button>
               <div className="flex-1 ml-3 flex flex-col">
                 <div className="relative h-6 flex items-center">
+                  {/* Waveform Visualization (mocked) */}
                   <div className="flex-1 flex items-center h-full">
                     {waveformData.map((height, index) => (
                       <div
@@ -346,6 +422,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
                       />
                     ))}
                   </div>
+                  {/* Seekable progress indicator */}
                   <div
                     className="absolute top-0 bottom-0 w-2 h-2 rounded-full bg-white border-2 border-primary shadow cursor-pointer"
                     style={{ left: `${audioProgress}%`, transform: 'translateX(-50%)' }}
@@ -375,6 +452,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
 
       case 'text':
       default:
+        // Render text content with markdown parsing
         return <p className="text-sm break-words leading-snug">{parseTextContent(message.content)}</p>;
     }
   };
@@ -382,10 +460,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
   return (
     <motion.div
       className={`flex items-end mb-3 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
-      initial={{ opacity: 0, y: 15 }}
+      initial={{ opacity: 0, y: 15 }} // Animation for new messages
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
+      {/* Sender's profile picture for incoming messages */}
       {!isOwnMessage && (
         <ProfilePicture
           src={sender.profile_picture}
@@ -394,12 +473,15 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
           className="mr-2 mb-0.5 flex-shrink-0"
         />
       )}
+      {/* Message Bubble Container */}
       <div className={`flex flex-col ${baseBubbleClasses} ${message.type === 'audio' ? 'max-w-[85%] sm:max-w-[75%]' : 'max-w-[75%] sm:max-w-[65%]'}`}>
+        {/* Sender's username for incoming text messages */}
         {!isOwnMessage && message.type === 'text' && (
           <span className="text-xs font-semibold mb-0.5 text-primary break-words px-4 pt-2">
             {capitalizeFirstLetter(sender.username)}
           </span>
         )}
+        {/* Render media or text content */}
         {(message.type === 'image' || message.type === 'video' || message.type === 'audio') ? (
           <div className="relative w-full">
             {renderMediaContent()}
@@ -407,11 +489,14 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage, se
         ) : (
           <p className="text-sm break-words leading-snug px-4 py-2 text-text-primary">{parseTextContent(message.content)}</p>
         )}
+        {/* Render caption for media messages separately if it exists */}
         {isMediaWithCaption && (
           <p className="text-sm break-words leading-snug px-4 py-2 text-text-primary">{parseTextContent(message.content)}</p>
         )}
+        {/* Render timestamp and status for text messages as a footer */}
         {message.type === 'text' && renderTimestampAndStatusFooter()}
       </div>
+      {/* Own profile picture for outgoing messages, if enabled */}
       {isOwnMessage && showOwnProfilePicture && (
         <ProfilePicture
           src={sender.profile_picture}

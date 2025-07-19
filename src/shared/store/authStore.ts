@@ -6,6 +6,9 @@ import { auth, db } from '../libs/firebase';
 import type { User } from '../types/user';
 import { getDefaultAvatar } from '../utils/helpers';
 
+/**
+ * Defines the shape of the authentication state and actions within the Zustand store.
+ */
 interface AuthState {
   currentUser: User | null;
   loadingAuth: boolean;
@@ -19,20 +22,42 @@ interface AuthState {
 let onlineStatusTimeout: NodeJS.Timeout | null = null;
 let authUnsubscribe: (() => void) | null = null;
 
+/**
+ * `useAuthStore` is a Zustand store managing the global authentication state.
+ * It integrates with Firebase Authentication to listen for auth state changes,
+ * syncs user profiles with Firestore, and handles user online/offline presence.
+ */
 export const useAuthStore = create<AuthState>((set, get) => ({
   currentUser: null,
   loadingAuth: true,
 
+  /**
+   * Manually sets the current authenticated user in the store's state.
+   * This is typically used internally by the auth listener or other auth-related processes.
+   * @param user The User object or null if no user is authenticated.
+   */
   setCurrentUser: (user: User | null) => {
     console.log('[AuthStore] setCurrentUser: Manually setting currentUser:', user?.id || 'null');
     set({ currentUser: user });
   },
 
+  /**
+   * Manually sets the authentication loading state in the store.
+   * This indicates whether the app is currently checking the user's authentication status.
+   * @param isLoading True if authentication state is loading, false otherwise.
+   */
   setLoadingAuth: (isLoading: boolean) => {
     console.log('[AuthStore] setLoadingAuth: Manually setting loadingAuth to', isLoading);
     set({ loadingAuth: isLoading });
   },
 
+  /**
+   * Initializes the Firebase Authentication state listener (`onAuthStateChanged`).
+   * This function sets up a persistent listener that tracks changes in the user's
+   * authentication status (login, logout). When a user logs in, it fetches or creates
+   * their profile in Firestore and updates their `is_online` status. When a user logs out,
+   * it sets their previous status to `offline` in Firestore.
+   */
   initializeAuthListener: () => {
     if (authUnsubscribe) {
       authUnsubscribe();
@@ -42,8 +67,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     console.log('[AuthStore] initializeAuthListener: Setting up Firebase Auth listener.');
     authUnsubscribe = onAuthStateChanged(auth, async (user) => {
       console.log('[AuthStore] onAuthStateChanged triggered. User:', user?.uid || 'null');
-      
-      set({ loadingAuth: true }); // Start loading when auth state changes
+
+      set({ loadingAuth: true });
 
       if (user) {
         try {
@@ -59,12 +84,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               email: user.email || firestoreProfile.email,
               username: user.displayName || firestoreProfile.username,
               profile_picture: user.photoURL || firestoreProfile.profile_picture || getDefaultAvatar(firestoreProfile.username || 'User'),
-              is_online: true, // ASSUME ONLINE ON INITIAL LOAD
-              last_seen: null, // ASSUME ONLINE ON INITIAL LOAD
+              is_online: true,
+              last_seen: null,
               created_at: firestoreProfile.created_at || user.metadata.creationTime || new Date().toISOString(),
             };
 
-            // Only update Firestore if the user was previously offline
             if (!firestoreProfile.is_online) {
               console.log('[AuthStore] Auth listener: User was offline, setting to online in Firestore.');
               await updateDoc(userDocRef, {
@@ -89,7 +113,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
               email: user.email || '',
               username: defaultUsername,
               profile_picture: defaultProfilePicture,
-              is_online: true, // New user is online
+              is_online: true,
               last_seen: null,
               created_at: user.metadata.creationTime || new Date().toISOString(),
             };
@@ -102,12 +126,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           toast.error('Failed to load user profile data.');
           set({ currentUser: null });
         } finally {
-          set({ loadingAuth: false }); // Always set loadingAuth to false after auth state is determined
+          set({ loadingAuth: false });
         }
-      } else { // User is null (logged out or not authenticated)
-        if (get().currentUser) { // Only attempt to set offline if a user was previously logged in
+      } else {
+        if (get().currentUser) {
           console.log('[AuthStore] Auth listener: User logged out, setting previous user offline in DB.');
-          // Directly call the update for the *previous* user's status, not the current one in store
           const prevUserId = get().currentUser?.id;
           if (prevUserId) {
             try {
@@ -122,14 +145,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             }
           }
         }
-        // Always reset currentUser to null and loadingAuth to false when no user
         set({ currentUser: null, loadingAuth: false });
       }
     });
   },
 
-  // This setOnlineStatus is now primarily for explicit actions or visibility changes,
-  // NOT for the initial load from onAuthStateChanged.
+  /**
+   * Updates the online status of the current user in Firestore.
+   * This function includes a debounce mechanism to prevent excessive writes to the database,
+   * ensuring status updates are efficient.
+   * @param isOnline True to set user online, false to set offline.
+   * @returns A Promise that resolves when the status update is complete.
+   */
   setOnlineStatus: async (isOnline: boolean): Promise<void> => {
     const currentUserId = get().currentUser?.id;
 
@@ -138,19 +165,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
-    // Clear previous timeout to ensure only the latest call is processed
     if (onlineStatusTimeout) {
       clearTimeout(onlineStatusTimeout);
       onlineStatusTimeout = null;
     }
 
     onlineStatusTimeout = setTimeout(async () => {
-      // Check if current user is still the same as when timeout was set
       if (get().currentUser?.id !== currentUserId) {
           console.log('[AuthStore] setOnlineStatus: User changed during debounce, aborting status update for old user.');
           return;
       }
-      
+
       console.log(`[AuthStore] setOnlineStatus: Attempting to set user ${currentUserId} online status to ${isOnline}.`);
       try {
         const userDocRef = doc(db, 'users', currentUserId);
@@ -159,7 +184,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           last_seen: isOnline ? null : new Date().toISOString()
         });
 
-        // Update Zustand store only if the user hasn't changed in the meantime
         set((state) => {
           if (state.currentUser?.id === currentUserId) {
             console.log('[AuthStore] setOnlineStatus: Updating currentUser state in store.');
@@ -172,18 +196,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             };
           }
           console.log('[AuthStore] setOnlineStatus: User changed in store, not updating old currentUser state.');
-          return {}; // No change to state
+          return {};
         });
         console.log('[AuthStore] setOnlineStatus: Online status set to', isOnline);
       } catch (error: any) {
         console.error('[AuthStore] setOnlineStatus: Caught error updating online status:', error);
         toast.error(error.message || 'An unexpected error occurred while updating online status.');
       } finally {
-        onlineStatusTimeout = null; // Clear timeout reference
+        onlineStatusTimeout = null;
       }
-    }, 300); // Debounce
+    }, 300);
   },
 
+  /**
+   * Logs out the current user from Firebase Authentication.
+   * This action also triggers the `onAuthStateChanged` listener, which will then
+   * update the store state and set the user's status to `offline` in Firestore.
+   * @returns A Promise that resolves when the user is successfully signed out.
+   */
   logoutUser: async (): Promise<void> => {
     console.log('[AuthStore] logoutUser: Attempting to log out user.');
     try {

@@ -43,7 +43,7 @@ const Dialog: React.FC<DialogProps> = ({
   confirmText = 'Confirm',
   cancelText = 'Cancel',
   isConfirming = false,
-  variant = 'default', // Dialog's internal variant type
+  variant = 'default',
 }) => {
   // Map Dialog's 'default' variant to Button's 'primary' variant
   const buttonVariant = variant === 'default' ? 'primary' : 'danger';
@@ -69,7 +69,7 @@ const Dialog: React.FC<DialogProps> = ({
             <p className="text-text-secondary mb-6">{message}</p>
             <div className="flex justify-end space-x-3">
               <Button
-                variant="secondary" // Cancel button always uses secondary variant
+                variant="secondary"
                 onClick={onClose}
                 disabled={isConfirming}
                 className="min-w-[80px]"
@@ -77,7 +77,7 @@ const Dialog: React.FC<DialogProps> = ({
                 {cancelText}
               </Button>
               <Button
-                variant={buttonVariant} // Use the mapped variant for the confirm button
+                variant={buttonVariant}
                 onClick={onConfirm}
                 disabled={isConfirming}
                 className="min-w-[100px]"
